@@ -2,7 +2,7 @@ clear all;
 close all;
 clc;
 
-fs = 44100;     % Sampling rate
+fs = 8000;     % Sampling rate
 E = 2E11;       % Young's Modulus
 L = 0.40;       % String length
 rho = 7850;     % Density of steel [kg/m^3]
@@ -32,18 +32,9 @@ u(floor(n * P - cosWidth / 2 : ceil(n * P + cosWidth / 2))) = raisedCos;
 uPrev = u;
 plot (u);
 uNext = zeros(n,1);
-% Dxxxx = (sparse(3:n, 1:n-2, ones(1, n-2), n, n) + ...
-%         sparse(2:n, 1:n-1, -4 * ones(1, n-1), n, n) + ...
-%         sparse(1:n, 1:n, 6 * ones(1, n), n, n) + ...
-%         sparse(1:n-1, 2:n, -4 * ones(1, n-1), n, n) + ...
-%         sparse(1:n-2, 3:n, ones(1, n-2), n, n));
 Dxx = (sparse(2:n, 1:n-1, ones(1, n-1), n, n) + ...
     sparse(1:n, 1:n, -2 * ones(1, n), n, n) + ...
     sparse(1:n-1, 2:n, ones(1, n-1), n, n));
-% Dxx(:,1:2) = 0;
-% Dxx(:,end-1:end) = 0;
-% Dxx(1:2,:) = 0;
-% Dxx(end-1:end,:) = 0;
 Dxxxx = Dxx * Dxx;
 
 I = sparse(1:n, 1:n, ones(1, n), n, n);
@@ -52,17 +43,36 @@ B = 2 * I + lambdaSq * Dxx - muSq * Dxxxx;
 Buse = B(3:n-2, 3:n-2);
 lengthSound = fs;
 out = zeros(lengthSound, 1);
+
+kinEnergy = zeros(lengthSound,1);
+potEnergy = zeros(lengthSound,1);
+
+range = 3:n-2;
+drawString = false;
+
 for t = 1 : lengthSound
-    uNext(3:n-2) = B(3:n-2,3:n-2) * u(3:n-2) - uPrev(3:n-2);
+    uNext(range) = B(range, range) * u(range) - uPrev(range);
     out(t) = uNext(length(uNext) - PIdx);
+    kinEnergy(t) = 1 / 2 * sum (h * ((1 / k * (u(range) - uPrev(range))).^2));
+    potEnergy(t) = c^2 / 2 * sum (1 / h * ...
+        (u(range + 1) - u(range)) .* (uPrev(range + 1) - uPrev(range)) + ...
+        kappa^2 / 2 *  1 / h^3 * ...
+        (u(range + 1) - 2 * u(range) + u(range - 1)) .* ...
+        (uPrev(range + 1) - 2 * uPrev(range) + uPrev(range - 1)));
+    
     uPrev = u;
     u = uNext;
-    if mod(t,2) == 1
+    if mod(t,2) == 1 && drawString
         plot(uNext);
         ylim([-1 1]);
         drawnow;
     end
 end
+plot(kinEnergy);
+hold on; plot(potEnergy);
+totEnergy = kinEnergy + potEnergy;
+plot(totEnergy);
+
 plot(out);
 
 for t = 1 : fs * 3
