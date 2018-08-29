@@ -1,12 +1,7 @@
-clear all;
-close all;
-clc;
-
-fs = 44100;      % Sampling rate
+fs = 44100;
+c = 100;
+L = 1;
 k = 1 / fs;     % Time step
-L = 0.4;       % String length
-rho = 7850;     % Density of steel [kg/m^3]
-c = 200;        % Wave speed
 h = c * k;      % Grid spacing
 
 lambdaSq = (c * k / h)^2; % Courant number squared
@@ -17,7 +12,6 @@ N = floor(L / h) + 1; % Number of grid-points
 %% Raised cosine input
 cosWidth = round(N / 10);
 raisedCos = 0.5 * (cos(pi:(2*pi)/cosWidth:3*pi) + 1);
-PIdx = floor (P * N);
 
 %% Initialise state vectors
 u = zeros(N, 1);
@@ -26,84 +20,108 @@ uPrev = u;
 uNext = zeros(N, 1);
 
 %% Boundary Conditions
-bound = "Dir";
+bound = "Neu";
  
 %% Extra Settings
 lengthSound = fs / 10;
-matrix = true;
 
 %% Matrix Representation
+matrix = true;
 if matrix
     if strcmp(bound, "Dir")
-        N = N - 2;
         Dxx = (sparse(2:N, 1:N-1, ones(1, N-1), N, N) + ...
             sparse(1:N, 1:N, -2 * ones(1, N), N, N) + ...
             sparse(1:N-1, 2:N, ones(1, N-1), N, N));
-        I = sparse(1:N, 1:N, ones(1, N), N, N);
-        N = N + 2;
-        range = 2 : N - 1;  
+        I = sparse(1:N, 1:N, ones(1, N), N, N); 
     else
         if strcmp(bound, "Neu")
             Dxx = (sparse(2:N, 1:N-1, [ones(1, N-2) 2], N, N) + ...
                 sparse(1:N, 1:N, -2 * ones(1, N), N, N) + ...
                 sparse(1:N-1, 2:N, [2 ones(1, N-2)], N, N));
             I = sparse(1:N, 1:N, ones(1, N), N, N);
-            range = 1 : N; 
         end
     end
 
     B = 2 * I + lambdaSq * Dxx;
-    out = zeros(lengthSound, 1);
     kinEnergy = zeros(lengthSound,1);
     potEnergy = zeros(lengthSound,1);
-    plotString = false;
 
     for n = 1 : lengthSound
-        uNext(range) = B * u(range) - uPrev(range);
-        kinEnergy(n) = 1 / 2 * sum (h * ((1 / k * (u(range) - uPrev(range))).^2));
-        potEnergy(n) = c^2 / 2 * sum (1 / h * ...
-            (u([1 range] + 1) - u([1 range])) .* (uPrev([1 range] + 1) - uPrev([1 range])));
-        out(n) = uNext(PIdx);
-
-        if plotString
-            plot(uNext);
-            ylim([-1 1]);
-            drawnow;
+        uNext(2:N-1) = B(2:N-1, 2:N-1) * u(2:N-1) - uPrev(2:N-1);
+        kinEnergy(n) = 1 / 2 * sum (h * ((1 / k * (u(1:N) - uPrev(1:N))).^2));
+        if strcmp(bound, "Dir")
+            potEnergy(n) = c^2 / 2 * sum (1 / h * ...
+                (u(2:N) - u(1:N-1)) .* (uPrev(2:N) - uPrev(1:N-1)));
+        else
+            potEnergy(n) = c^2 / 2 * sum (1 / h * ...
+                (u(2:N) - u(1:N-1)) .* (uPrev(2:N) - uPrev(1:N-1)));
         end
-
         uPrev = u;
         u = uNext;
     end
     totEnergy = kinEnergy + potEnergy;
     totEnergy = (totEnergy-totEnergy(1))/totEnergy(1);
-    plot(totEnergy);
-
-
+    maxTotEnergy = max(totEnergy) - min(totEnergy);
+    plot (totEnergy);
+    
 else
-    %% For-loop representation
-    potEnergy = zeros(lengthSound, 1);
-    kinEnergy = zeros(lengthSound, 1);
-
+    i = 1;
+    kinEnergy = zeros(lengthSound,1);
+    potEnergy = zeros(lengthSound,1);
+    totEnergy = zeros(lengthSound,1);
     for n = 1 : lengthSound
-        for l = 1 : length(u) - 1
-            if l ~= 1
-                uNext(l) = 2 * (1 - lambdaSq) * u(l) + lambdaSq * (u(l - 1) + u(l + 1)) - uPrev(l);
+        for l = 1 : length(u)
+            if strcmp(bound, "Dir")
+                if l ~= N
+                    if l ~= 1
+                        uNext(l) = 2 * (1 - lambdaSq) * u(l) + lambdaSq * (u(l - 1) + u(l + 1)) - uPrev(l);
+                    end
+                    potEnergy(n) = potEnergy(n) + c^2 / 2 * 1 / h * ...
+                        (u(l + 1) - u(l)) * (uPrev(l + 1) - uPrev(l));
+                end
+            else
+                if strcmp(bound, "Neu")
+                    if l == N
+                        uNext(N) = 2 * u(N) - uPrev(N) + lambdaSq * (-u(N)+u(N-1));
+%                         potEnergy(n) = potEnergy(n) + c^2 / 2 * 1 / h * ...
+%                             (u(N - 1) - u(N - 2)) * (uPrev(N - 1) - uPrev(N - 2));
+                    else
+                        if l == 1
+                            uNext(1) = 2 * u(1) - uPrev(1) + lambdaSq*(u(2)-u(1));
+                        else
+                            uNext(l) = 2 * u(l) + lambdaSq * (u(l - 1) - 2 * u(l) + u(l + 1)) - uPrev(l);
+                        end
+%                             + (h / (2 * k)) * (u(1) - uPrev(1)) + (h / (2 * k)) * (u(N) - uPrev(N))
+                        potEnergy(n) = potEnergy(n) + c^2 / 2 * 1 / h * ...
+                                 (u(l + 1) - u(l)) * (uPrev(l + 1) - uPrev(l));
+                    end
+                    
+                end
             end
-                kinEnergy(n) = kinEnergy(n) + 1 / 2 * h * ((1 / k * (u(l) - uPrev(l)))^2);
-                potEnergy(n) = potEnergy(n) + c^2 / 2 * 1 / h * ...
-                    (u(l + 1) - u(l)) * (uPrev(l + 1) - uPrev(l));
+            kinEnergy(n) = kinEnergy(n) + 1 / 2 * (h / k^2) * (u(l) - uPrev(l))^2;
+%             potEnergy(n) = potEnergy(n) + c^2 / 2 * (h * (1 / 2 * (1 / h * ...
+%                     (u(l+1) - u(l) - uPrev(l+1) + uPrev(l))))^2 - ...
+%                     k^2 / 4 * (h * (1/k * (1/h * (u(l+1) - u(l) - uPrev(l+1) + uPrev(l))))^2));
+
         end
+        
+        subplot(2,1,1);
+        plot(uNext);
+        totEnergy = kinEnergy + potEnergy;
+        subplot(2,1,2);
+        plot((totEnergy(1:n)-totEnergy(1))/totEnergy(1));
+        drawnow;
         uPrev = u;
         u = uNext;
-
-        out(n) = uNext(PIdx);
     end
-    figure(2);
+    % totEnergy = kinEnergy + potEnergy;
     totEnergy = kinEnergy + potEnergy;
-    kinEnergy = (kinEnergy-totEnergy(1))/totEnergy(1);
-    potEnergy = (potEnergy-totEnergy(1))/totEnergy(1);
+    % totEnergy = (totEnergy-totEnergy(1))/totEnergy(1);
     totEnergy = (totEnergy-totEnergy(1))/totEnergy(1);
-    % plot(kinEnergy); hold on;
-    % plot(potEnergy);
+    % plot(totEnergy);
+    % hold on;
     plot(totEnergy);
+    %     hold on; plot(potEnergy2);
+    %     hold on; plot(kinEnergy2);
+    % plot(out);
 end

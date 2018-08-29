@@ -1,8 +1,8 @@
-% clear all;
+clear all;
 close all;
 clc;
 
-fs = 10000;      % Sampling rate
+fs = 88200;      % Sampling rate
 k = 1 / fs;     % Time step
 L = 1;          % String length
 rho = 7850;     % Density of steel [kg/m^3]
@@ -17,10 +17,10 @@ muSq = (k * kappa / h^2)^2; % Courant number squared
 
 P = 1/2; % plucking position
 
-N = floor(L / h) + 1; % Number of grid-points
+N = floor(L / h); % Number of grid-points
 
 %% Raised cosine input
-cosWidth = N / 20;
+cosWidth = floor(N / 20);
 raisedCos = 0.5 * (cos(pi:(2*pi)/cosWidth:3*pi) + 1);
 PIdx = floor (P * N);
 
@@ -35,10 +35,18 @@ u2(floor(N * P - cosWidth / 2 : ceil(N * P + cosWidth / 2))) = raisedCos;
 uPrev2 = u2;
 uNext2 = zeros(N, 1);
 
-lengthSound = fs;
-drawBar = false;
-matrix = true;
+u3 = zeros(N, 1);
+u3(floor(N * P - cosWidth / 2 : ceil(N * P + cosWidth / 2))) = raisedCos;
+uPrev3 = u3;
+uNext3 = zeros(N, 1);
 
+
+lengthSound = fs * 5;
+drawBar = true;
+matrix = false;
+
+ssBounds = true;
+freeBounds = true;
 %% Matrix representation
 if matrix
     Dxx = (sparse(2:N, 1:N-1, ones(1, N-1), N, N) + ...
@@ -85,15 +93,44 @@ else
     kinEnergy = zeros(lengthSound,1);
     potEnergy = zeros(lengthSound,1);
     for n = 1 : lengthSound
-        for l = 2 : length(u) - 1
-            if l ~= 2 && l ~= length(u) - 1
+        for l = 1 : N
+            if l > 2 && l < length(u) - 1
                 uNext(l) = (2 - 6 * muSq) * u(l) + ...
                             4 * muSq * (u(l + 1) + u(l - 1)) - ...
                             muSq * (u(l - 2) + u(l + 2)) - uPrev(l);
+                
+                uNext2(l) = (2 - 6 * muSq) * u2(l) + ...
+                    4 * muSq * (u2(l + 1) + u2(l - 1)) - ...
+                    muSq * (u2(l - 2) + u2(l + 2)) - uPrev2(l);
+                
+                uNext3(l) = (2 - 6 * muSq) * u3(l) + ...
+                    4 * muSq * (u3(l + 1) + u3(l - 1)) - ...
+                    muSq * (u3(l - 2) + u3(l + 2)) - uPrev3(l);
+            else
+                if l == 2 && ssBounds
+                    uNext2(2) = (2 - 5 * muSq) * u2(2) + 4 * muSq * u2(3) - muSq * u2(4) - uPrev2(2);
+                end
+                
+                if l == N - 1 && ssBounds
+                    uNext2(N - 1) = (2 - 5 * muSq) * u2(N - 1) + 4 * muSq * u2(N - 2) - muSq * u2(N - 3) - uPrev2(N - 1);
+                end
+                
+                if l == 1 && freeBounds
+                    uNext3(1) = (2 - 6 * muSq) * u3(1) + 8 * muSq * u3(2) - 2 * muSq * u3(3) - uPrev3(1);
+                end
+                if l == 2 && freeBounds
+                    uNext3(2) = (2 - 7 * muSq) * u3(2) + 4 * muSq * (u3(1) + u3(3)) - muSq * u3(4) - uPrev3(2);
+                end
+                if l == N && freeBounds
+                    uNext3(N) = (2 - 6 * muSq) * u3(N) + 8 * muSq * u3(N - 1) - 2 * muSq * u3(N - 2) - uPrev3(N);
+                end
+                if l == N - 1 && freeBounds
+                    uNext3(N - 1) = (2 - 7 * muSq) * u3(N - 1) + 4 * muSq * (u3(N) + u3(N - 2)) - muSq * u3(N - 3) - uPrev3(N - 1);
+                end
             end
-            kinEnergy(n) = kinEnergy(n) + 1 / 2 * h * ((1 / k * (u(l) - uPrev(l)))^2);
-            potEnergy(n) = potEnergy(n) +  kappa^2 / 2 * 1/h^3 ...
-                * (u(l+1) - 2 * u(l) + u(l-1)) * (uPrev(l+1) - 2 * uPrev(l) + uPrev(l-1));
+%             kinEnergy(n) = kinEnergy(n) + 1 / 2 * h * ((1 / k * (u(l) - uPrev(l)))^2);
+%             potEnergy(n) = potEnergy(n) +  kappa^2 / 2 * 1/h^3 ...
+%                 * (u(l+1) - 2 * u(l) + u(l-1)) * (uPrev(l+1) - 2 * uPrev(l) + uPrev(l-1));
 %                 2/h^3 * (u(2) - u(1)) * (uPrev(2) - uPrev(1))...
 %                 + 2/h^3 * (-u(N) + u(N-1)) * (-uPrev(N) + uPrev(N-1))
     %         potEnergy2(n) = potEnergy2(n) +  kappa^2 / 2 * 1/h^3 ...
@@ -114,14 +151,27 @@ else
     %             * h * (1 / (h^2 * k) * (u(l + 1) - uPrev(l + 1) - 2 * (u(l) - uPrev(l)) + u(l - 1) - uPrev(l - 1)))^2;
 
         end
-        if mod(n,2) == 1 && drawBar
-            plot(uNext);
+        if mod(n,1) == 0 && drawBar
+            clf;
+            plot(uNext); hold on;
+            plot(uNext2);
+            plot(uNext3);
             ylim([-1 1]);
+            legend('Clamped', 'Simply Supported', 'Free');
+            set(gca, 'FontSize', 15);
             drawnow;
         end
-        out(n) = uNext(PIdx);
+        out(n) = uNext(floor(length(uNext) / 2));
+        out2(n) = uNext2(floor(length(uNext) / 2));
+        out3(n) = uNext3(floor(length(uNext) / 2));
         uPrev = u;
         u = uNext;
+        
+        uPrev2 = u2;
+        u2 = uNext2;
+        
+        uPrev3 = u3;
+        u3 = uNext3;
     end
     % totEnergy = kinEnergy + potEnergy;
     totEnergy = kinEnergy + potEnergy;
