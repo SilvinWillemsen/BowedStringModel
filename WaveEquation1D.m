@@ -38,6 +38,7 @@ if matrix
             Dxx = (sparse(2:N, 1:N-1, [ones(1, N-2) 2], N, N) + ...
                 sparse(1:N, 1:N, -2 * ones(1, N), N, N) + ...
                 sparse(1:N-1, 2:N, [2 ones(1, N-2)], N, N));
+            Dxxxx = Dxx * Dxx;
             I = sparse(1:N, 1:N, ones(1, N), N, N);
         end
     end
@@ -49,13 +50,8 @@ if matrix
     for n = 1 : lengthSound
         uNext(2:N-1) = B(2:N-1, 2:N-1) * u(2:N-1) - uPrev(2:N-1);
         kinEnergy(n) = 1 / 2 * sum (h * ((1 / k * (u(1:N) - uPrev(1:N))).^2));
-        if strcmp(bound, "Dir")
-            potEnergy(n) = c^2 / 2 * sum (1 / h * ...
-                (u(2:N) - u(1:N-1)) .* (uPrev(2:N) - uPrev(1:N-1)));
-        else
-            potEnergy(n) = c^2 / 2 * sum (1 / h * ...
-                (u(2:N) - u(1:N-1)) .* (uPrev(2:N) - uPrev(1:N-1)));
-        end
+        potEnergy(n) = c^2 / 2 * sum (1 / h * ...
+            (u(2:N) - u(1:N-1)) .* (uPrev(2:N) - uPrev(1:N-1)));
         uPrev = u;
         u = uNext;
     end
