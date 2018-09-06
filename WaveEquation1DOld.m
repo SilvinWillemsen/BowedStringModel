@@ -23,24 +23,26 @@ uNext = zeros(N, 1);
 bound = "Neu";
  
 %% Extra Settings
-lengthSound = fs / 10;
+lengthSound = fs;
 
 %% Matrix Representation
 matrix = true;
+
 if matrix
     if strcmp(bound, "Dir")
         Dxx = (sparse(2:N, 1:N-1, ones(1, N-1), N, N) + ...
             sparse(1:N, 1:N, -2 * ones(1, N), N, N) + ...
             sparse(1:N-1, 2:N, ones(1, N-1), N, N));
-        I = sparse(1:N, 1:N, ones(1, N), N, N); 
+        I = sparse(1:N, 1:N, ones(1, N), N, N);
+        range = 2:N-1;
     else
         if strcmp(bound, "Neu")
-            Dxx = (sparse(2:N, 1:N-1, [ones(1, N-2) 2], N, N) + ...
-                sparse(1:N, 1:N, -2 * ones(1, N), N, N) + ...
-                sparse(1:N-1, 2:N, [2 ones(1, N-2)], N, N));
-            Dxxxx = Dxx * Dxx;
+            Dxx = (sparse(2:N, 1:N-1, [ones(1, N-2) 1], N, N) + ...
+                sparse(1:N, 1:N, [-1 -2 * ones(1, N-2) -1], N, N) + ...
+                sparse(1:N-1, 2:N, [1 ones(1, N-2)], N, N));
             I = sparse(1:N, 1:N, ones(1, N), N, N);
         end
+        range = 1:N;
     end
 
     B = 2 * I + lambdaSq * Dxx;
@@ -48,8 +50,8 @@ if matrix
     potEnergy = zeros(lengthSound,1);
 
     for n = 1 : lengthSound
-        uNext(2:N-1) = B(2:N-1, 2:N-1) * u(2:N-1) - uPrev(2:N-1);
-        kinEnergy(n) = 1 / 2 * sum (h * ((1 / k * (u(1:N) - uPrev(1:N))).^2));
+        uNext(range) = B(range, range) * u(range) - uPrev(range);
+        kinEnergy(n) = 1 / 2 * sum (h * ((1 / k * (u - uPrev)).^2));
         potEnergy(n) = c^2 / 2 * sum (1 / h * ...
             (u(2:N) - u(1:N-1)) .* (uPrev(2:N) - uPrev(1:N-1)));
         uPrev = u;
@@ -78,7 +80,7 @@ else
             else
                 if strcmp(bound, "Neu")
                     if l == N
-                        uNext(N) = 2 * u(N) - uPrev(N) + lambdaSq * (-u(N)+u(N-1));
+                        uNext(l) = 2 * u(l) - uPrev(l) + lambdaSq * (-u(l)+u(l-1));
 %                         potEnergy(n) = potEnergy(n) + c^2 / 2 * 1 / h * ...
 %                             (u(N - 1) - u(N - 2)) * (uPrev(N - 1) - uPrev(N - 2));
                     else

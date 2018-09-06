@@ -4,17 +4,18 @@ clc;
 
 fs = 44100;      % Sampling rate
 k = 1 / fs;     % Time step
-L = 1;          % Bar length
+L = 0.7;          % Bar length
 rho = 7850;     % Density of steel [kg/m^3]
-r = 0.001;      % String radius
+r = 0.008;      % String radius
 A = pi * r^2;   % Cross-sectional area
 E = 2e11;       % Young's Modulus
 inertia = pi / 4 * r^4; % Moment of inertia
-kappa = sqrt((E * inertia) / (rho * A * L^4));  % Stiffness
+kappa = sqrt((E * inertia) / (rho * A * L^2));  % Stiffness
 
 h = sqrt(2 * kappa * k); % Grid spacing
 muSq = (k * kappa / h^2)^2; % Courant number squared (always 0.25)
 
+lambdaSq = (k^2*kappa^2) / h^4;
 P = 1/2; % plucking position
 
 N = floor(L / h); % Number of grid-points
@@ -25,9 +26,19 @@ raisedCos = 0.5 * (cos(pi:(2*pi)/cosWidth:3*pi) + 1);
 PIdx = floor (P * N);
 
 %% Initialise state vectors
-u = zeros(N, 1); 
-uPrev = zeros(N, 1);
+u = zeros(N, 1);
+u(ceil(N * P - cosWidth / 2 : ceil(N * P + cosWidth / 2))) = raisedCos;
+uPrev = u;
 uNext = zeros(N, 1);
+
+% u0 = u;
+u0 = zeros(N,1);
+uPrev0 = uPrev;
+uNext0 = uNext;
+
+u = zeros(N,1);
+uPrev = zeros(N,1);
+uNext = zeros(N,1);
 
 u(1) = 0;
 u(N) = 0;
@@ -52,16 +63,17 @@ uNext4 = zeros(N, 1);
 
 lengthSound = fs;
 drawBar = false;
-matrix = true;
+matrix = false;
 
 ssBounds = true;
 freeBounds = true;
 
-bounds = 'free';
+bounds = 'clamped';
 %% Matrix representation
 if matrix
     if strcmp(bounds, 'clamped')
         N = N - 4;
+        
         Dxxxx = (sparse(3:N, 1:N-2, ones(1, N-2), N, N) + ...
                 sparse(2:N, 1:N-1, -4 * ones(1, N-1), N, N) + ...
                 sparse(1:N, 1:N, 6 * ones(1, N), N, N) + ...
@@ -172,13 +184,28 @@ else
 %         uPrev3 = rand(N,1) - 0.5;
     kinEnergy2 = zeros(lengthSound,1);
     potEnergy2 = zeros(lengthSound,1);
+    s0 = 5;
+%     s1 = 0.00075;
+    s1 = 0.0004;
+    d = 1 + s0*k;
+    T60 = 6 * log(10)/s0;
     for n = 1 : lengthSound
         for l = 1 : N
             if l > 2 && l < N - 1
-                uNext(l) = (2 - 6 * muSq) * u(l) + ...
-                            4 * muSq * (u(l + 1) + u(l - 1)) - ...
-                            muSq * (u(l - 2) + u(l + 2)) - uPrev(l);
-
+                uNext0(l) = (2 - 6 * muSq) * u0(l) + ...
+                        4 * muSq * (u0(l + 1) + u0(l - 1)) - ...
+                        muSq * (u0(l - 2) + u0(l + 2)) - uPrev0(l);
+                if l > round(N/2) - 2 && l < round(N/2) + 2 && n < 11
+                    excitation = 1;
+                else
+                    excitation = 0;
+                end
+                uNext(l) = ((2 - 6 * muSq - 4 * s1 * (k / h^2)) * u(l) + ...
+                    (4 * muSq + 2 * s1 * (k/h^2)) * (u(l+1) + u(l-1)) +...
+                    (-1 + k * s0 + 4 * s1 * (k/h^2)) * uPrev(l) - ...
+                    2 * s1 * (k/h^2) * (uPrev(l+1) + uPrev(l-1)) - ...
+                    muSq * (u(l+2) + u(l-2)) + excitation) / (1 + k*s0);
+                
                 uNext2(l) = 2 * u2(l) - muSq * (6 * u2(l) - ...
                     4 * (u2(l + 1) + u2(l - 1)) + ...
                     (u2(l - 2) + u2(l + 2))) - uPrev2(l);
@@ -241,8 +268,7 @@ else
                         * (-2 * u2(N)) * (-2 * uPrev2(N));
                 end
                 kinEnergy(n) = kinEnergy(n) + 1 / 2 * h * ((1 / k * (u2(l) - uPrev2(l)))^2);
-                plot(u)
-                drawnow;
+  
             end
             
             if strcmp(bounds, "free")
@@ -309,9 +335,19 @@ else
             set(gca, 'FontSize', 15);
             drawnow;
         end
-        out(n) = uNext(floor(length(uNext) / 2));
+        out0(n) = uNext0(floor(length(uNext0) / 2));
+        out(n) = uNext(floor(length(uNext) / 4));
         out2(n) = uNext2(floor(length(uNext) / 2));
         out3(n) = uNext3(floor(length(uNext) / 2));
+%         clf;
+%         if mod(n, 1) == 0
+%                     plot(u);
+% %             ylim([-1 1])
+%             drawnow;
+%         end
+           
+        uPrev0 = u0;
+        u0 = uNext0;
         
         uPrev = u;
         u = uNext;
@@ -332,10 +368,10 @@ else
 %     totEnergy2 = (totEnergy2-totEnergy2(1))/totEnergy2(1);
     % plot(totEnergy);
     % hold on;
-    plot(totEnergy); 
+%     plot(totEnergy); 
 %     hold on;
 %     plot(totEnergy2);
     %     hold on; plot(potEnergy2);
     %     hold on; plot(kinEnergy2);
-    % plot(out);
+    plot(out);
 end
