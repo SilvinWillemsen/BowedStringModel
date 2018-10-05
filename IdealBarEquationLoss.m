@@ -12,16 +12,19 @@ E = 2e11;       % Young's Modulus
 inertia = pi / 4 * r^4; % Moment of inertia
 kappa = sqrt((E * inertia) / (rho * A * L^2));  % Stiffness
 
-h = sqrt(2 * kappa * k); % Grid spacing
-muSq = (k * kappa / h^2)^2; % Courant number squared (always 0.25)
-
-lambdaSq = (k^2*kappa^2) / h^4;
+s0 = 0;
+s1 = 0.0;
+h = sqrt(2 * k * (s1^2 + sqrt(kappa^2 + s1^2)));
+% muSq = (k * kappa / h^2)^2; % Courant number squared (always 0.25)
+muSq = 0.25;
+% lambdaSq = (k^2*kappa^2) / h^4;
+lambdaSq = 0.25;
 P = 1/2; % plucking position
 
 N = floor(L / h); % Number of grid-points
 
 %% Raised cosine input
-cosWidth = floor(N / 4);
+cosWidth = floor(N / 2);
 raisedCos = 0.5 * (cos(pi:(2*pi)/cosWidth:3*pi) + 1);
 PIdx = floor (P * N);
 
@@ -53,8 +56,11 @@ uNext2 = zeros(N, 1);
 
 u3 = zeros(N, 1);
 u3(ceil(N * P - cosWidth / 2 : ceil(N * P + cosWidth / 2))) = raisedCos;
+% u3 = rand(N, 1) - 0.5;
+% u3 = rand(N, 1) - 0.5;
 uPrev3 = u3;
 uNext3 = zeros(N, 1);
+
 
 u4 = zeros(N, 1);
 u4(ceil(N * P - cosWidth / 2 : ceil(N * P + cosWidth / 2))) = raisedCos;
@@ -68,7 +74,7 @@ matrix = false;
 ssBounds = true;
 freeBounds = true;
 
-bounds = 'clamped';
+bounds = 'ss';
 %% Matrix representation
 if matrix
     if strcmp(bounds, 'clamped')
@@ -184,54 +190,81 @@ else
 %         uPrev3 = rand(N,1) - 0.5;
     kinEnergy2 = zeros(lengthSound,1);
     potEnergy2 = zeros(lengthSound,1);
-    s0 = 5;
+    
 %     s1 = 0.00075;
-    s1 = 0.0004;
+   
     d = 1 + s0*k;
     T60 = 6 * log(10)/s0;
     for n = 1 : lengthSound
         for l = 1 : N
+            if l > round(N/2) - 2 && l < round(N/2) + 2 && n < 11
+                excitation = 1;
+            else
+                excitation = 0;
+            end
+              
             if l > 2 && l < N - 1
                 uNext0(l) = (2 - 6 * muSq) * u0(l) + ...
                         4 * muSq * (u0(l + 1) + u0(l - 1)) - ...
                         muSq * (u0(l - 2) + u0(l + 2)) - uPrev0(l);
-                if l > round(N/2) - 2 && l < round(N/2) + 2 && n < 11
-                    excitation = 1;
-                else
-                    excitation = 0;
-                end
                 uNext(l) = ((2 - 6 * muSq - 4 * s1 * (k / h^2)) * u(l) + ...
                     (4 * muSq + 2 * s1 * (k/h^2)) * (u(l+1) + u(l-1)) +...
                     (-1 + k * s0 + 4 * s1 * (k/h^2)) * uPrev(l) - ...
                     2 * s1 * (k/h^2) * (uPrev(l+1) + uPrev(l-1)) - ...
-                    muSq * (u(l+2) + u(l-2)) + excitation) / (1 + k*s0);
+                    muSq * (u(l+2) + u(l-2))) / (1 + k*s0);
                 
-                uNext2(l) = 2 * u2(l) - muSq * (6 * u2(l) - ...
-                    4 * (u2(l + 1) + u2(l - 1)) + ...
-                    (u2(l - 2) + u2(l + 2))) - uPrev2(l);
-
-                uNext3(l) = 2 * u3(l) - muSq * (6 * u3(l) - ...
-                    4 * (u3(l + 1) + u3(l - 1)) + ...
-                    (u3(l - 2) + u3(l + 2))) - uPrev3(l);
-
+                uNext2(l) = ((2 - 6 * muSq - 4 * s1 * (k / h^2)) * u2(l) + ...
+                    (4 * muSq + 2 * s1 * (k/h^2)) * (u2(l+1) + u2(l-1)) +...
+                    (-1 + k * s0 + 4 * s1 * (k/h^2)) * uPrev2(l) - ...
+                    2 * s1 * (k/h^2) * (uPrev2(l+1) + uPrev2(l-1)) - ...
+                    muSq * (u2(l+2) + u2(l-2)) + excitation) / (1 + k*s0);
+                
+                uNext3(l) = ((2 - 6 * muSq - 4 * s1 * (k / h^2)) * u3(l) + ...
+                    (4 * muSq + 2 * s1 * (k/h^2)) * (u3(l+1) + u3(l-1)) +...
+                    (-1 + k * s0 + 4 * s1 * (k/h^2)) * uPrev3(l) - ...
+                    2 * s1 * (k/h^2) * (uPrev3(l+1) + uPrev3(l-1)) - ...
+                    muSq * (u3(l+2) + u3(l-2))) / (1 + k*s0);
+                
             else
                 if l == 2 && ssBounds
-                    uNext2(2) = 2 * u2(2) - muSq * (5 * u2(l) - 4 * u2(l + 1) + u2(l + 2)) - uPrev2(2);
+                    uNext2(l) = ((2 - 6 * muSq - 4 * s1 * (k / h^2)) * u2(l) + ...
+                        (4 * muSq + 2 * s1 * (k/h^2)) * (u2(l+1) + u2(l-1)) +...
+                        (-1 + k * s0 + 4 * s1 * (k/h^2)) * uPrev2(l) - ...
+                        2 * s1 * (k/h^2) * (uPrev2(l+1) + uPrev2(l-1)) - ...
+                        muSq * (u2(l+2) - u2(l)) + excitation) / (1 + k*s0);
                 elseif l == N - 1 && ssBounds
-                    uNext2(l) = 2 * u2(l) - muSq * (5 * u2(l) - 4 * u2(l - 1) + u2(l - 2)) - uPrev2(l);
+                    uNext2(l) = ((2 - 6 * muSq - 4 * s1 * (k / h^2)) * u2(l) + ...
+                        (4 * muSq + 2 * s1 * (k/h^2)) * (u2(l+1) + u2(l-1)) +...
+                        (-1 + k * s0 + 4 * s1 * (k/h^2)) * uPrev2(l) - ...
+                        2 * s1 * (k/h^2) * (uPrev2(l+1) + uPrev2(l-1)) - ...
+                        muSq * (-u2(l) + u2(l-2)) + excitation) / (1 + k*s0);
                 end
                 
                 if l == 1 && freeBounds
-                    uNext3(l) = 2 * u3(l) - muSq * (6 * u3(l)) - uPrev3(l);
+                    uNext3(l) = ((2 - 6 * muSq - 4 * s1 * (k / h^2)) * u3(l) + ...
+                        (4 * muSq + 2 * s1 * (k/h^2)) * (2 * u3(l+1)) +...
+                        (-1 + k * s0 + 4 * s1 * (k/h^2)) * uPrev3(l) - ...
+                        2 * s1 * (k/h^2) * (2 * uPrev3(l+1)) - ...
+                        muSq * (2 * u3(l+2))) / (1 + k*s0);
                 end
                 if l == 2 && freeBounds
-                    uNext3(l) = 2 * u3(l) - muSq * (5 * u3(l) - 4 * (u3(l - 1) + u3(l + 1)) + u3(l + 2)) - uPrev3(l);
-                end
-                if l == N && freeBounds
-                    uNext3(l) = 2 * u3(l) - muSq * (6 * u3(l)) - uPrev3(l);
-                end
-                if l == N - 1 && freeBounds
-                    uNext3(l) = 2 * u3(l) - muSq * (5  * u3(l) - 4 * (u3(l + 1) + u3(l - 1)) + u3(l - 2)) - uPrev3(l);
+                    uNext3(l) = ((2 - 6 * muSq - 4 * s1 * (k / h^2)) * u3(l) + ...
+                        (4 * muSq + 2 * s1 * (k/h^2)) * (u3(l+1) + u3(l-1)) +...
+                        (-1 + k * s0 + 4 * s1 * (k/h^2)) * uPrev3(l) - ...
+                        2 * s1 * (k/h^2) * (uPrev3(l+1) + uPrev3(l-1)) - ...
+                        muSq * (u3(l+2) + u3(l))) / (1 + k*s0);
+                elseif l == N && freeBounds
+                    uNext3(l) = ((2 - 6 * muSq - 4 * s1 * (k / h^2)) * u3(l) + ...
+                        (4 * muSq + 2 * s1 * (k/h^2)) * (2 * u3(l-1)) +...
+                        (-1 + k * s0 + 4 * s1 * (k/h^2)) * uPrev3(l) - ...
+                        2 * s1 * (k/h^2) * (2 * uPrev3(l-1)) - ...
+                        muSq * (2 * u3(l-2))) / (1 + k*s0);
+                elseif l == N - 1 && freeBounds
+                    uNext3(l) = ((2 - 6 * muSq - 4 * s1 * (k / h^2)) * u3(l) + ...
+                        (4 * muSq + 2 * s1 * (k/h^2)) * (u3(l+1) + u3(l-1)) +...
+                        (-1 + k * s0 + 4 * s1 * (k/h^2)) * uPrev3(l) - ...
+                        2 * s1 * (k/h^2) * (uPrev3(l+1) + uPrev3(l-1)) - ...
+                        muSq * (u3(l) + u3(l-2))) / (1 + k*s0);
                 end
 %                 if l == 1 && freeBounds
 %                     uNext3(l) = 2 * u3(l) - muSq * (6 * u3(l) - 8 * u3(l + 1) + 2 * u3(l + 2)) - uPrev3(l);
@@ -256,7 +289,7 @@ else
             end
             if strcmp(bounds, "ss")
                 if l > 1 && l < N
-                    potEnergy(n) = potEnergy(n) +  kappa^2 / 2 * 1/h^3 ...
+                    potEnergy(n) = potEnergy(n) + kappa^2 / 2 * 1/h^3 ...
                         * (u2(l+1) - 2 * u2(l) + u2(l-1)) * (uPrev2(l+1) - 2 * uPrev2(l) + uPrev2(l-1));
                 end
                 if l == 1
@@ -299,7 +332,7 @@ else
                     kinEnergy(n) = kinEnergy(n) + 1 / 2 * h * 1 / 2 * ((1 / k * (u3(l) - uPrev3(l)))^2);
                 
                 end
-            end
+            end 
         end
 %         clf
 % if mod (n,3) == 0
@@ -325,13 +358,13 @@ else
 %             hold on;
 %             plot(totEnergy2(1:n));
 %             drawnow;
-        if mod(n,10) == 0 && drawBar
+        if mod(n,100) == 0 && drawBar
 %             clf;
 %             plot(uNext); hold on;
 %             plot(uNext2); hold on;
             plot(uNext3);
-%             ylim([-1 1]);
-            legend('Clamped', 'Simply Supported', 'Free');
+            ylim([-1 1]);
+%             legend('Clamped', 'Simply Supported', 'Free');
             set(gca, 'FontSize', 15);
             drawnow;
         end
@@ -364,6 +397,7 @@ else
     end
     totEnergy = kinEnergy + potEnergy;
 %     totEnergy2 = kinEnergy2 + potEnergy2;
+totEnergy = totEnergy(20:end);
     totEnergy = (totEnergy-totEnergy(1))/totEnergy(1);
 %     totEnergy2 = (totEnergy2-totEnergy2(1))/totEnergy2(1);
     % plot(totEnergy);
@@ -373,5 +407,5 @@ else
 %     plot(totEnergy2);
     %     hold on; plot(potEnergy2);
     %     hold on; plot(kinEnergy2);
-    plot(out);
+    plot(out3);
 end

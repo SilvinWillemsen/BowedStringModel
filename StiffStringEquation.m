@@ -2,87 +2,198 @@ clear all;
 close all;
 clc;
 
-fs = 8000;     % Sampling rate
+fs = 44100;     % Sampling rate
 E = 2E11;       % Young's Modulus
-L = 0.40;       % String length
+L = 1.5;       % String length
 rho = 7850;     % Density of steel [kg/m^3]
-c = 21;        % Speed
-gamma = c / L;
+gamma = 500;        % Speed
 k = 1/fs;
-r = 0.0001;      % String radius
-inertia = pi / 4 * r^4;         % Moment of inertia
-A = r^2 * pi; % Cross-sectional area
-kappa = sqrt((E * inertia) / rho * A * L^4);  % Stiffness
+s0 = 0.0;
+s1 = 0.00;
+numKappa = 10000;
+kappaLoop = false;
+if kappaLoop
+    muSq = zeros(numKappa,1);
+    lambdaSq = zeros(numKappa,1);
+    for kappa = 1 : numKappa
+        % kappa = 0.5; %sqrt((E * inertia) / rho * A * L^4);  % Stiffness
+        % h = nthroot(k^2 * kappa^2 + 16 * gamma^2 * k^2, 4);
+        h = sqrt((gamma^2*k^2 + 4 * s1 * k + sqrt((gamma^2 * k^2 + 4 * s1 * k)^2 + 16 * (kappa / 100)^2 * k^2)) / 2);
+        muSq(kappa) = (k * (kappa / 100) / h^2)^2;
+        lambdaSq(kappa) = (gamma * k / h)^2;
+    end
+    plot(lambdaSq)
+    hold on; plot(muSq)
+    plot(lambdaSq + 4*muSq)
+else
+     kappa = 2;
+     h = sqrt((gamma^2*k^2 + 4 * s1 * k + sqrt((gamma^2 * k^2 + 4 * s1 * k)^2 + 16 * kappa^2 * k^2)) / 2);
+     muSq = (k * kappa / h^2)^2;
+     lambdaSq = (gamma * k / h)^2;
+end
+P = 1/2;
 
-% h = nthroot(k^2 * kappa^2 + 16 * gamma^2 * k^2, 4);
-h = sqrt((gamma^2*k^2+sqrt(gamma^4 * k^4 + 16 * kappa^2 * k^2)) / 2);
-muSq = (k * kappa / h^2)^2;
-lambdaSq = (gamma * k / h);
-% lambdaSq + 4 * muSq = 1;
+N = floor(L / h) + 1;
 
-P = 1/3;
-
-n = floor(L / h) + 1;
-
-cosWidth = round(n / 30);
+cosWidth = round(N / 15);
 raisedCos = 0.5 * (cos(pi:(2*pi)/cosWidth:3*pi) + 1);
-PIdx = floor (P * n);
-u = zeros(n, 1);
-u(floor(n * P - cosWidth / 2 : ceil(n * P + cosWidth / 2))) = raisedCos;
+PIdx = floor (P * N);
+u = zeros(N, 1);
+u(ceil(N * P - cosWidth / 2 : ceil(N * P + cosWidth / 2))) = raisedCos;
+% u(3:N-2) = rand(N - 4,1) - 0.5; 
 uPrev = u;
 plot (u);
-uNext = zeros(n,1);
-Dxx = (sparse(2:n, 1:n-1, ones(1, n-1), n, n) + ...
-    sparse(1:n, 1:n, -2 * ones(1, n), n, n) + ...
-    sparse(1:n-1, 2:n, ones(1, n-1), n, n));
-Dxxxx = Dxx * Dxx;
+uNext = zeros(N,1);
 
-I = sparse(1:n, 1:n, ones(1, n), n, n);
-B = 2 * I + lambdaSq * Dxx - muSq * Dxxxx;
-
-Buse = B(3:n-2, 3:n-2);
 lengthSound = fs;
 out = zeros(lengthSound, 1);
 
 kinEnergy = zeros(lengthSound,1);
 potEnergy = zeros(lengthSound,1);
 
-range = 3:n-2;
 drawString = false;
 
+bc = "ss";
+
 for t = 1 : lengthSound
-    uNext(range) = B(range, range) * u(range) - uPrev(range);
-    out(t) = uNext(length(uNext) - PIdx);
-    kinEnergy(t) = 1 / 2 * sum (h * ((1 / k * (u(range) - uPrev(range))).^2));
-    potEnergy(t) = c^2 / 2 * sum (1 / h * ...
-        (u(range + 1) - u(range)) .* (uPrev(range + 1) - uPrev(range)) + ...
-        kappa^2 / 2 *  1 / h^3 * ...
-        (u(range + 1) - 2 * u(range) + u(range - 1)) .* ...
-        (uPrev(range + 1) - 2 * uPrev(range) + uPrev(range - 1)));
-    
+    if bc == "clamped"
+        for l = 2 : N - 1
+            if l > 2 && l < N - 1
+                  uNext(l) = (2 * u(l) - uPrev(l) + lambdaSq * (u(l+1) -2 * u(l) + u(l-1)) ...
+                      - muSq * (u(l+2) - 4*u(l+1) + 6*u(l) - 4*u(l-1) + u(l-2)) ...
+                      + s0 * k * uPrev(l) + (2*s1*k)/h^2 ...
+                      * ((u(l+1) - 2 * u(l) + u(l-1)) ...
+                      - (uPrev(l+1) - 2 * uPrev(l) + uPrev(l-1)))) ...
+                      / (1 + s0 * k);
+            end
+            potEnergy(t) = potEnergy(t) ...
+                + gamma^2 / 2 * sum (1 / h * (u(l + 1) - u(l)) * (uPrev(l + 1) - uPrev(l))) ...
+                + kappa^2 / 2 * 1/h^3 * sum((u(l + 1) - 2 * u(l) + u(l - 1)) ...
+                * (uPrev(l + 1) - 2 * uPrev(l) + uPrev(l - 1)));
+            kinEnergy(t) = kinEnergy(t) + 1 / 2 * sum (h * ((1 / k * (u(l) - uPrev(l)))^2));
+
+        end
+    elseif bc == "ss"
+        for l = 1 : N
+            if l > 2 && l < N - 1
+                uNext(l) = (2 * u(l) - uPrev(l) + lambdaSq * (u(l+1) -2 * u(l) + u(l-1)) ...
+                      - muSq * (u(l+2) - 4*u(l+1) + 6*u(l) - 4*u(l-1) + u(l-2)) ...
+                      + s0 * k * uPrev(l) + (2*s1*k)/h^2 ...
+                      * ((u(l+1) - 2 * u(l) + u(l-1)) ...
+                      - (uPrev(l+1) - 2 * uPrev(l) + uPrev(l-1)))) ...
+                      / (1 + s0 * k);
+            elseif l == 2
+                  uNext(l) = (2 * u(l) - uPrev(l) + lambdaSq * (u(l+1) -2 * u(l) + u(l-1)) ...
+                      - muSq * (u(l+2) - 4*u(l+1) + 5*u(l) - 4*u(l-1)) ...
+                      + s0 * k * uPrev(l) + (2*s1*k)/h^2 ...
+                      * ((u(l+1) - 2 * u(l) + u(l-1)) ...
+                      - (uPrev(l+1) - 2 * uPrev(l) + uPrev(l-1)))) ...
+                      / (1 + s0 * k);
+            elseif l == N - 1
+                   uNext(l) = (2 * u(l) - uPrev(l) + lambdaSq * (u(l+1) -2 * u(l) + u(l-1)) ...
+                      - muSq * (-4*u(l+1) + 5*u(l) - 4*u(l-1) + u(l-2)) ...
+                      + s0 * k * uPrev(l) + (2*s1*k)/h^2 ...
+                      * ((u(l+1) - 2 * u(l) + u(l-1)) ...
+                      - (uPrev(l+1) - 2 * uPrev(l) + uPrev(l-1)))) ...
+                      / (1 + s0 * k);
+            end
+            if l > 1 && l < N
+                waveEqPotEnergy = gamma^2 / 2 * 1 / h * ...
+                    (u(l) - u(l-1)) .* (uPrev(l) - uPrev(l-1));
+                barPotEnergy = kappa^2 / 2 * 1/h^3 ...
+                        * (u(l+1) - 2 * u(l) + u(l-1)) * (uPrev(l+1) - 2 * uPrev(l) + uPrev(l-1));
+                potEnergy(t) = potEnergy(t) + waveEqPotEnergy + barPotEnergy;
+            end
+            if l == 1
+                waveEqPotEnergy = 0;
+                barPotEnergy = kappa^2 / 2 * 1/h^3 ...
+                        * (-2 * u(1)) * (-2 * uPrev(1));
+                potEnergy(t) = potEnergy(t) + waveEqPotEnergy + barPotEnergy;
+            elseif l == N
+                waveEqPotEnergy = gamma^2 / 2 * 1 / h * ...
+                    (u(l) - u(l-1)) .* (uPrev(l) - uPrev(l-1));
+                barPotEnergy = kappa^2 / 2 * 1/h^3 ...
+                        * (-2 * u(N)) * (-2 * uPrev(N));
+                potEnergy(t) = potEnergy(t) + waveEqPotEnergy + barPotEnergy;
+            end
+            kinEnergy(t) = kinEnergy(t) + 1 / 2 * h * ((1 / k * (u(l) - uPrev(l)))^2);
+        end
+    elseif bc == "free"
+        for l = 1 : N
+            if l > 2 && l < N - 1
+                  uNext(l) = (2 * u(l) - uPrev(l) + lambdaSq * (u(l+1) -2 * u(l) + u(l-1)) ...
+                      - muSq * (u(l+2) - 4*u(l+1) + 6*u(l) - 4*u(l-1) + u(l-2)) ...
+                      + s0 * k * uPrev(l) + (2*s1*k)/h^2 ...
+                      * ((u(l+1) - 2 * u(l) + u(l-1)) ...
+                      - (uPrev(l+1) - 2 * uPrev(l) + uPrev(l-1)))) ...
+                      / (1 + s0 * k);
+            elseif l == 2
+                  uNext(l) = (2 * u(l) - uPrev(l) + lambdaSq * (u(l+1) -2 * u(l) + u(l-1)) ...
+                      - muSq * (u(l+2) - 4*u(l+1) + 7*u(l) - 4*u(l-1)) ...
+                      + s0 * k * uPrev(l) + (2*s1*k)/h^2 ...
+                      * ((u(l+1) - 2 * u(l) + u(l-1)) ...
+                      - (uPrev(l+1) - 2 * uPrev(l) + uPrev(l-1)))) ...
+                      / (1 + s0 * k);
+            elseif l == N - 1
+                   uNext(l) = (2 * u(l) - uPrev(l) + lambdaSq * (u(l+1) -2 * u(l) + u(l-1)) ...
+                      - muSq * (-4*u(l+1) + 7*u(l) - 4*u(l-1) + u(l-2)) ...
+                      + s0 * k * uPrev(l) + (2*s1*k)/h^2 ...
+                      * ((u(l+1) - 2 * u(l) + u(l-1)) ...
+                      - (uPrev(l+1) - 2 * uPrev(l) + uPrev(l-1)))) ...
+                      / (1 + s0 * k);
+            elseif l == 1
+                   uNext(l) = (2 * u(l) - uPrev(l) + lambdaSq * (2 * u(l+1) - 2 * u(l)) ...
+                      - muSq * (2 * u(l+2) - 8*u(l+1) + 6*u(l)) ...
+                      + s0 * k * uPrev(l) + (2*s1*k)/h^2 ...
+                      * ((2 * u(l+1) - 2 * u(l)) ...
+                      - (2 * uPrev(l+1) - 2 * uPrev(l)))) ...
+                      / (1 + s0 * k);
+            elseif l == N
+                   uNext(l) = (2 * u(l) - uPrev(l) + lambdaSq * (-2 * u(l) + 2 * u(l-1)) ...
+                      - muSq * (6*u(l) - 8 * u(l-1) + 2 * u(l-2)) ...
+                      + s0 * k * uPrev(l) + (2*s1*k)/h^2 ...
+                      * ((-2 * u(l) + 2 * u(l-1)) ...
+                      - (-2 * uPrev(l) + 2 * uPrev(l-1)))) ...
+                      / (1 + s0 * k);
+            end
+            if l > 1 && l < N
+                potEnergy(t) = potEnergy(t) ...
+                    + gamma^2 / 2 * sum (1 / h * (u(l + 1) - u(l)) * (uPrev(l + 1) - uPrev(l))) ...
+                    + kappa^2 / 2 * 1/h^3 * sum((u(l + 1) - 2 * u(l) + u(l - 1)) ...
+                    * (uPrev(l + 1) - 2 * uPrev(l) + uPrev(l - 1)));
+                kinEnergy(t) = kinEnergy(t) + 1 / 2 * sum (h * ((1 / k * (u(l) - uPrev(l)))^2));
+            elseif l == 1
+                potEnergy(t) = potEnergy(t) ...
+                    + gamma^2 / 2 * sum (1 / h * (u(l + 1) - u(l)) * (uPrev(l + 1) - uPrev(l))) ...
+                    + kappa^2 / 2 * 1/h^3 * sum((2 * u(l + 1) - 2 * u(l)) ...
+                    * (2 * uPrev(l + 1) - 2 * uPrev(l)));
+                kinEnergy(t) = kinEnergy(t) + 1 / 4 * sum (h * ((1 / k * (u(l) - uPrev(l)))^2));
+            elseif l == N
+                potEnergy(t) = potEnergy(t) ...
+                    + gamma^2 / 2 * sum (1 / h * (u(l - 1) - u(l)) * (uPrev(l - 1) - uPrev(l))) ...
+                    + kappa^2 / 2 * 1/h^3 * sum((- 2 * u(l) + 2 * u(l - 1)) ...
+                    * (- 2 * uPrev(l) + 2 * uPrev(l - 1)));
+                kinEnergy(t) = kinEnergy(t) + 1 / 4 * sum (h * ((1 / k * (u(l) - uPrev(l)))^2));
+            end
+        end
+    end
+%     plot3(cos([1:N]*2*pi/(N-1)), sin([1:N]*2*pi/(N-1)), u);
+%     grid on
+%     zlim([-1, 1]);
+% totEnergy = kinEnergy + potEnergy;
+% totEnergy = (totEnergy-totEnergy(1))/totEnergy(1);
+% clf
+% plot(kinEnergy(1:t)); hold on; plot(potEnergy(1:t)); plot(totEnergy(1:t)*10e5);
+%     drawnow;
+    out(t) = u(floor(N*P));
     uPrev = u;
     u = uNext;
-    if mod(t,2) == 1 && drawString
-        plot(uNext);
-        ylim([-1 1]);
-        drawnow;
-    end
 end
-plot(kinEnergy);
-hold on; plot(potEnergy);
 totEnergy = kinEnergy + potEnergy;
+totEnergy = (totEnergy-totEnergy(1))/totEnergy(1);
 plot(totEnergy);
-
-plot(out);
-
-for t = 1 : fs * 3
-    for x = 3 : length(u) - 2
-        uNext(x) = (2 - 2 * lambdaSq - 6 * muSq) * u(x) + ...
-                   (lambdaSq + 4 * muSq) * (u(x+1) + u(x-1)) - ...
-                    muSq * (u(x-2) + u(x+2)) - uPrev(x);
-    end
-    out(t) = uNext(PIdx);
-    uPrev = u;
-    u = uNext;
-end
-plot(out);
+winSize = 2^12;
+overlap = 2^8;
+spectrogram(out*100,hanning(winSize),overlap,[],fs, 'MinThresh', -100,'yaxis')
+% ylim([0,fs/2])
+% plot(out);

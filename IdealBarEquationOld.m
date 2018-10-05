@@ -51,8 +51,8 @@ uPrev4 = u4;
 uNext4 = zeros(N, 1);
 
 lengthSound = fs;
-drawBar = false;
-matrix = true;
+drawBar = true;
+matrix = false;
 
 ssBounds = true;
 freeBounds = true;
@@ -305,10 +305,11 @@ else
 %             plot(uNext2); hold on;
             plot(uNext3);
 %             ylim([-1 1]);
-            legend('Clamped', 'Simply Supported', 'Free');
+%             legend('Clamped', 'Simply Supported', 'Free');
             set(gca, 'FontSize', 15);
             drawnow;
         end
+        
         out(n) = uNext(floor(length(uNext) / 2));
         out2(n) = uNext2(floor(length(uNext) / 2));
         out3(n) = uNext3(floor(length(uNext) / 2));

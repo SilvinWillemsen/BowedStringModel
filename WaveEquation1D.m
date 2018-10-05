@@ -83,10 +83,10 @@ if strcmp(BC, "Neu1")
         potEnergy(n) = c^2 / 2 * sum (1 / h * ...
             (u(2:N) - u(1:N-1)) .* (uPrev(2:N) - uPrev(1:N-1)));
         
-%         if mod(n,2) == 0 && drawString
-%             plot(u)
-%             drawnow;
-%         end
+        if mod(n,2) == 0 %&& drawString
+            plot(u)
+            drawnow;
+        end
         
         uPrev = u;
         u = uNext;

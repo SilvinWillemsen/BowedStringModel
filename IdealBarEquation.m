@@ -96,7 +96,8 @@ if strcmp(BC, "clamped")
     for n = 1 : lengthSound
         uNext(3:N-2) = B * u(3:N-2) - uPrev(3:N-2);
         kinEnergy(n) = 1 / 2 * h * sum((1 / k * (u - uPrev)).^2);
-        potEnergy(n) = kappa^2 / 2 * 1/h^3 * sum((u(3:N) - 2 * u(2:N-1) + u(1:N-2))...
+        potEnergy(n) = kappa^2 / 2 * 1/h^3 ...
+            * sum((u(3:N) - 2 * u(2:N-1) + u(1:N-2))...
             .* (uPrev(3:N) - 2 * uPrev(2:N-1) + uPrev(1:N-2)));
         uPrev = u;
         u = uNext;
