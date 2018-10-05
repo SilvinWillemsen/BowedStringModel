@@ -4,56 +4,61 @@ clc;
 
 fs = 44100;     % Sampling rate
 E = 2E11;       % Young's Modulus
-L = 1.5;       % String length
+L = 4;       % String length
 rho = 7850;     % Density of steel [kg/m^3]
 gamma = 500;        % Speed
 k = 1/fs;
-s0 = 0.0;
-s1 = 0.00;
+s0 = 0.1;
+s1 = 0.005;
 numKappa = 10000;
 kappaLoop = false;
+
+drawString = true;
+
 if kappaLoop
     muSq = zeros(numKappa,1);
     lambdaSq = zeros(numKappa,1);
     for kappa = 1 : numKappa
         % kappa = 0.5; %sqrt((E * inertia) / rho * A * L^4);  % Stiffness
         % h = nthroot(k^2 * kappa^2 + 16 * gamma^2 * k^2, 4);
-        h = sqrt((gamma^2*k^2 + 4 * s1 * k + sqrt((gamma^2 * k^2 + 4 * s1 * k)^2 + 16 * (kappa / 100)^2 * k^2)) / 2);
-        muSq(kappa) = (k * (kappa / 100) / h^2)^2;
-        lambdaSq(kappa) = (gamma * k / h)^2;
+        h(kappa) = sqrt((gamma^2*k^2 + 4 * s1 * k + sqrt((gamma^2 * k^2 + 4 * s1 * k)^2 + 16 * (kappa / 100)^2 * k^2)) / 2);
+        muSq(kappa) = (k * (kappa / 100) / h(kappa)^2)^2;
+        lambdaSq(kappa) = (gamma * k / h(kappa))^2;
     end
-    plot(lambdaSq)
+    plot(h)
     hold on; plot(muSq)
     plot(lambdaSq + 4*muSq)
 else
      kappa = 2;
      h = sqrt((gamma^2*k^2 + 4 * s1 * k + sqrt((gamma^2 * k^2 + 4 * s1 * k)^2 + 16 * kappa^2 * k^2)) / 2);
+     gamma = gamma;
+     kappa = sqrt(((2*h^2-gamma^2*k^2-4*s1*k)^2-(gamma^2*k^2+4*s1*k)^2)/(16*k^2));
      muSq = (k * kappa / h^2)^2;
      lambdaSq = (gamma * k / h)^2;
 end
-P = 1/2;
-
+P = 9/10;
 N = floor(L / h) + 1;
-
 cosWidth = round(N / 15);
 raisedCos = 0.5 * (cos(pi:(2*pi)/cosWidth:3*pi) + 1);
 PIdx = floor (P * N);
 u = zeros(N, 1);
 u(ceil(N * P - cosWidth / 2 : ceil(N * P + cosWidth / 2))) = raisedCos;
 % u(3:N-2) = rand(N - 4,1) - 0.5; 
+% u(N/2 : N/2+1) = 1;
 uPrev = u;
 plot (u);
 uNext = zeros(N,1);
 
-lengthSound = fs;
+lengthSound = fs * 5;
 out = zeros(lengthSound, 1);
 
 kinEnergy = zeros(lengthSound,1);
 potEnergy = zeros(lengthSound,1);
 
-drawString = false;
-
-bc = "ss";
+drawString = true;
+gamma = gamma * nthroot(2,12)^-12;
+lambdaSq = (gamma * k / h)^2;
+bc = "clamped";
 
 for t = 1 : lengthSound
     if bc == "clamped"
@@ -97,6 +102,8 @@ for t = 1 : lengthSound
                       - (uPrev(l+1) - 2 * uPrev(l) + uPrev(l-1)))) ...
                       / (1 + s0 * k);
             end
+            
+            % Energy analysis
             if l > 1 && l < N
                 waveEqPotEnergy = gamma^2 / 2 * 1 / h * ...
                     (u(l) - u(l-1)) .* (uPrev(l) - uPrev(l-1));
@@ -157,43 +164,65 @@ for t = 1 : lengthSound
                       / (1 + s0 * k);
             end
             if l > 1 && l < N
-                potEnergy(t) = potEnergy(t) ...
-                    + gamma^2 / 2 * sum (1 / h * (u(l + 1) - u(l)) * (uPrev(l + 1) - uPrev(l))) ...
-                    + kappa^2 / 2 * 1/h^3 * sum((u(l + 1) - 2 * u(l) + u(l - 1)) ...
-                    * (uPrev(l + 1) - 2 * uPrev(l) + uPrev(l - 1)));
-                kinEnergy(t) = kinEnergy(t) + 1 / 2 * sum (h * ((1 / k * (u(l) - uPrev(l)))^2));
-            elseif l == 1
-                potEnergy(t) = potEnergy(t) ...
-                    + gamma^2 / 2 * sum (1 / h * (u(l + 1) - u(l)) * (uPrev(l + 1) - uPrev(l))) ...
-                    + kappa^2 / 2 * 1/h^3 * sum((2 * u(l + 1) - 2 * u(l)) ...
-                    * (2 * uPrev(l + 1) - 2 * uPrev(l)));
-                kinEnergy(t) = kinEnergy(t) + 1 / 4 * sum (h * ((1 / k * (u(l) - uPrev(l)))^2));
+                waveEqPotEnergy = gamma^2 / 2 * 1 / h * ...
+                    (u(l) - u(l-1)) .* (uPrev(l) - uPrev(l-1));
+                barPotEnergy = kappa^2 / 2 * 1/h^3 ...
+                        * (u(l+1) - 2 * u(l) + u(l-1)) * (uPrev(l+1) - 2 * uPrev(l) + uPrev(l-1));
+                potEnergy(t) = potEnergy(t) + waveEqPotEnergy + barPotEnergy;
+                kinEnergy(t) = kinEnergy(t) + 1 / 2 * h * ((1 / k * (u(l) - uPrev(l)))^2);
+            end
+            if l == 1
+%                 waveEqPotEnergy = gamma^2 / 2 * 1 / h * ...
+%                     (u(l) - u(l+1)) .* (uPrev(l) - uPrev(l+1));
+                waveEqPotEnergy = 0;
+                barPotEnergy = kappa^2 / 2 * 1/h^3 ...
+                        * 0.5 * (2 * u(l+1) - 2 * u(l)) * (2 * uPrev(l+1) - 2 * uPrev(l));
+                potEnergy(t) = potEnergy(t) + waveEqPotEnergy + barPotEnergy;
+                kinEnergy(t) = kinEnergy(t) + 1 / 2 * 1 / 2 * h * ((1 / k * (u(l) - uPrev(l)))^2);
+        
             elseif l == N
-                potEnergy(t) = potEnergy(t) ...
-                    + gamma^2 / 2 * sum (1 / h * (u(l - 1) - u(l)) * (uPrev(l - 1) - uPrev(l))) ...
-                    + kappa^2 / 2 * 1/h^3 * sum((- 2 * u(l) + 2 * u(l - 1)) ...
-                    * (- 2 * uPrev(l) + 2 * uPrev(l - 1)));
-                kinEnergy(t) = kinEnergy(t) + 1 / 4 * sum (h * ((1 / k * (u(l) - uPrev(l)))^2));
+                waveEqPotEnergy = gamma^2 / 2 * 1 / h * ...
+                    (u(l) - u(l-1)) .* (uPrev(l) - uPrev(l-1));
+                barPotEnergy = kappa^2 / 2 * 1/h^3 ...
+                        * 0.5 * (-2 * u(l) + 2 * u(l-1)) * (-2 * uPrev(l) + 2 * uPrev(l-1));
+                potEnergy(t) = potEnergy(t) + waveEqPotEnergy + barPotEnergy;
+                kinEnergy(t) = kinEnergy(t) + 1 / 2 * 1 / 2 * h * ((1 / k * (u(l) - uPrev(l)))^2);
+        
             end
         end
     end
 %     plot3(cos([1:N]*2*pi/(N-1)), sin([1:N]*2*pi/(N-1)), u);
 %     grid on
 %     zlim([-1, 1]);
-% totEnergy = kinEnergy + potEnergy;
-% totEnergy = (totEnergy-totEnergy(1))/totEnergy(1);
-% clf
-% plot(kinEnergy(1:t)); hold on; plot(potEnergy(1:t)); plot(totEnergy(1:t)*10e5);
-%     drawnow;
-    out(t) = u(floor(N*P));
+if drawString == false && mod(t,10) == 0
+    clf
+    plot(u);
+    hold on; scatter(110,0);
+    ylim([-0.5 0.5])
+    drawnow;
+end
+%     for i = 1:N 
+%         if uNext(i) < -0.3
+%             uNext(i) = -0.3;
+%         end
+%     end
+fret = N - round(nthroot(2, 12)^-12* N);
+uNext(fret) = uNext(fret) * 0.9;
+fingerwidth = 2;
+if fret - fingerwidth > 0
+    for i = -fingerwidth/2:fingerwidth/2
+        uNext(fret + i) = uNext(fret + i) * 0.5;
+    end
+end
+    out(t) = uNext(110);
     uPrev = u;
     u = uNext;
 end
 totEnergy = kinEnergy + potEnergy;
 totEnergy = (totEnergy-totEnergy(1))/totEnergy(1);
-plot(totEnergy);
 winSize = 2^12;
 overlap = 2^8;
 spectrogram(out*100,hanning(winSize),overlap,[],fs, 'MinThresh', -100,'yaxis')
 % ylim([0,fs/2])
+plot(out);
 % plot(out);

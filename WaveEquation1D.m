@@ -100,7 +100,7 @@ if strcmp(BC, "Neu2")
         potEnergy(n) = c^2 / 2 * sum (1 / h * ...
             (u(2:N) - u(1:N-1)) .* (uPrev(2:N) - uPrev(1:N-1)));
         
-        if mod(n,1) == 0 && drawString
+        if mod(n,1) == 0 %&& drawString
 %             totEnergy = kinEnergy + potEnergy;
 %             totEnergy = (totEnergy-totEnergy(1))/totEnergy(1);
 %             plot(totEnergy(1:n))

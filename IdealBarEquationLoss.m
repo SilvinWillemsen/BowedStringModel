@@ -74,7 +74,7 @@ matrix = false;
 ssBounds = true;
 freeBounds = true;
 
-bounds = 'ss';
+bounds = 'free';
 %% Matrix representation
 if matrix
     if strcmp(bounds, 'clamped')
