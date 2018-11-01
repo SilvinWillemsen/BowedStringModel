@@ -2,40 +2,25 @@ clear all;
 close all;
 clc;
 
-fs = 44100;     % Sampling rate
+fs = 44100 * 2;     % Sampling rate
 E = 2E11;       % Young's Modulus
-L = 4;       % String length
+L = 2;       % String length
 rho = 7850;     % Density of steel [kg/m^3]
-gamma = 500;        % Speed
+gamma = 300;        % Speed
 k = 1/fs;
-s0 = 0.1;
-s1 = 0.005;
-numKappa = 10000;
-kappaLoop = false;
+s0 = 0.0;
+s1 = 0.0;
 
 drawString = true;
+flag = true;
+kappa = 0;
+h = sqrt((gamma^2*k^2 + 4 * s1 * k + sqrt((gamma^2 * k^2 + 4 * s1 * k)^2 + 16 * kappa^2 * k^2)) / 2);
+gamma = gamma;
+kappa = sqrt(((2*h^2-gamma^2*k^2-4*s1*k)^2-(gamma^2*k^2+4*s1*k)^2)/(16*k^2));
+muSq = (k * kappa / h^2)^2;
+lambdaSq = (gamma * k / h)^2;
 
-if kappaLoop
-    muSq = zeros(numKappa,1);
-    lambdaSq = zeros(numKappa,1);
-    for kappa = 1 : numKappa
-        % kappa = 0.5; %sqrt((E * inertia) / rho * A * L^4);  % Stiffness
-        % h = nthroot(k^2 * kappa^2 + 16 * gamma^2 * k^2, 4);
-        h(kappa) = sqrt((gamma^2*k^2 + 4 * s1 * k + sqrt((gamma^2 * k^2 + 4 * s1 * k)^2 + 16 * (kappa / 100)^2 * k^2)) / 2);
-        muSq(kappa) = (k * (kappa / 100) / h(kappa)^2)^2;
-        lambdaSq(kappa) = (gamma * k / h(kappa))^2;
-    end
-    plot(h)
-    hold on; plot(muSq)
-    plot(lambdaSq + 4*muSq)
-else
-     kappa = 2;
-     h = sqrt((gamma^2*k^2 + 4 * s1 * k + sqrt((gamma^2 * k^2 + 4 * s1 * k)^2 + 16 * kappa^2 * k^2)) / 2);
-     gamma = gamma;
-     kappa = sqrt(((2*h^2-gamma^2*k^2-4*s1*k)^2-(gamma^2*k^2+4*s1*k)^2)/(16*k^2));
-     muSq = (k * kappa / h^2)^2;
-     lambdaSq = (gamma * k / h)^2;
-end
+
 P = 9/10;
 N = floor(L / h) + 1;
 cosWidth = round(N / 15);
@@ -46,22 +31,53 @@ u(ceil(N * P - cosWidth / 2 : ceil(N * P + cosWidth / 2))) = raisedCos;
 % u(3:N-2) = rand(N - 4,1) - 0.5; 
 % u(N/2 : N/2+1) = 1;
 uPrev = u;
-plot (u);
 uNext = zeros(N,1);
 
-lengthSound = fs * 5;
+lengthSound = fs;
 out = zeros(lengthSound, 1);
 
 kinEnergy = zeros(lengthSound,1);
 potEnergy = zeros(lengthSound,1);
 
 drawString = true;
-gamma = gamma * nthroot(2,12)^-12;
-lambdaSq = (gamma * k / h)^2;
 bc = "clamped";
 
+mus=.4;                %static friction coeff
+mud=.02;                %dynamic friction coeff (must be < mus!!)
+
+nf = 0.001;
+
+% sf=mus*nf;             % stiction force
+% cf=mud*nf;             % coulomb force
+vb = 0.2;
+fb = 50;
+% minVel = 0;
+% maxDisp = 0.5;
+% mode = "stick";
+initBowPoint = P*N;
+% bowArea = bowPoint:bowPoint+3;
+
+%%
+bowPoint = 30;
 for t = 1 : lengthSound
     if bc == "clamped"
+%         bowPoint = floor(5 + (N - 10) * (cos(4/(lengthSound/fs) * pi * t/fs + pi) + 1) * 0.5);
+%         (u(bowPoint) - uPrev(bowPoint))
+        fb = 0.03;%3 * t / lengthSound;
+
+        vrel(t) =  1/k * (u(bowPoint) - uPrev(bowPoint)) - vb;
+        phiRes(t) = phi(vrel(t));
+        
+%         if mode == "stick"
+%             if u(bowPoint) >= maxDisp 
+%                 mode = "slip";
+%             else
+%                 u(bowArea) = u(bowArea) + [vb/2 vb vb vb/2]';
+%             end
+%         end
+%         if mode == "slip" && vel(t) >= minVel
+%             mode = "stick";
+%         end
         for l = 2 : N - 1
             if l > 2 && l < N - 1
                   uNext(l) = (2 * u(l) - uPrev(l) + lambdaSq * (u(l+1) -2 * u(l) + u(l-1)) ...
@@ -70,6 +86,9 @@ for t = 1 : lengthSound
                       * ((u(l+1) - 2 * u(l) + u(l-1)) ...
                       - (uPrev(l+1) - 2 * uPrev(l) + uPrev(l-1)))) ...
                       / (1 + s0 * k);
+%                   if l == bowPoint
+%                        uNext(l) = uNext(l) + phiRes(t) * fb;
+%                   end
             end
             potEnergy(t) = potEnergy(t) ...
                 + gamma^2 / 2 * sum (1 / h * (u(l + 1) - u(l)) * (uPrev(l + 1) - uPrev(l))) ...
@@ -78,6 +97,7 @@ for t = 1 : lengthSound
             kinEnergy(t) = kinEnergy(t) + 1 / 2 * sum (h * ((1 / k * (u(l) - uPrev(l)))^2));
 
         end
+            
     elseif bc == "ss"
         for l = 1 : N
             if l > 2 && l < N - 1
@@ -194,27 +214,60 @@ for t = 1 : lengthSound
 %     plot3(cos([1:N]*2*pi/(N-1)), sin([1:N]*2*pi/(N-1)), u);
 %     grid on
 %     zlim([-1, 1]);
-if drawString == false && mod(t,10) == 0
-    clf
-    plot(u);
-    hold on; scatter(110,0);
-    ylim([-0.5 0.5])
+% if flag == true
+%     fret(t) = (sin(2*pi*0.5*t/fs + 0.5*pi) * 0.5 + 0.5) * -12 - 2;
+%     if round(fret(t)) == -4
+%         flag = false;
+%     end
+% else
+%     fret(t) = -4;
+% end
+
+% if t > 0 && t <= 10000
+%     fret = -12;
+% elseif t > 10000 && t <= 20000
+%     fret = -14;
+% elseif t > 20000 
+%     fret = -12;
+% end
+fret = -12;
+fretPos = N - nthroot(2, 12)^fret * N;
+% fretPos = 156;
+pickup = floor(N/3);
+% pickup = 110;
+if drawString == true && mod(t,10) == 0 %&& t > 2*fs
+    subplot(2,1,1)
+    
+    plot(u, 'Linewidth', 1);
+%     ylim([-2e-19 2e-19])
+    subplot(2,1,2)
+    plot(phiRes(1:t))
+%     pickupScat = [pickup, 0; 290, 0.67];
+%     fretposScat = [fretPos, 0; 290, 0.60];
+%     hold on; scatter(pickupScat(:,1), pickupScat(:,2));
+%     scatter(fretposScat(:,1), fretposScat(:,2));
+%     text (300, 0.67, "Pickup", 'Fontsize', 14);
+%     text (300, 0.60, "Finger", 'Fontsize', 14);
+% %     legend('Pick-up', 'Finger');
+%     ylim([-0.75 0.75])
     drawnow;
 end
-%     for i = 1:N 
-%         if uNext(i) < -0.3
-%             uNext(i) = -0.3;
-%         end
+
+fingerwidth = 4;
+% if fret - fingerwidth > 0
+fracPos = fretPos - floor(fretPos);
+damping = 0;
+% if fretPos ~= 0
+%     for i = -fingerwidth/2:fingerwidth/2
+%         uNext(floor(fretPos) + i) = damping * (uNext(floor(fretPos + i)) * (1-fracPos) + uNext(floor(fretPos) + 1 + i) * fracPos);
 %     end
-fret = N - round(nthroot(2, 12)^-12* N);
-uNext(fret) = uNext(fret) * 0.9;
-fingerwidth = 2;
-if fret - fingerwidth > 0
-    for i = -fingerwidth/2:fingerwidth/2
-        uNext(fret + i) = uNext(fret + i) * 0.5;
-    end
-end
-    out(t) = uNext(110);
+% end
+%     uNext(floor(fretPos)) = damping * (uNext(floor(fretPos)) * (1-fracPos) + uNext(floor(fretPos) + 1) * fracPos);
+% uNext(floor(fretPos)) = damping * uNext(floor(fretPos));
+%     pos = sin(2*pi*t*2/fs) * 30 + 40;
+%     fracPos = pos - floor(pos);
+%     out(t) = uNext(floor(pos)) * (1-fracPos) + uNext(floor(pos)+1) * fracPos;
+    out(t) = uNext(bowPoint);
     uPrev = u;
     u = uNext;
 end
@@ -225,4 +278,19 @@ overlap = 2^8;
 spectrogram(out*100,hanning(winSize),overlap,[],fs, 'MinThresh', -100,'yaxis')
 % ylim([0,fs/2])
 plot(out);
-% plot(out);
+% plot(vrel);
+
+function [phiRes] = phi(eta)
+    a = 100;
+    epsilon = 0;
+    muD = 0.3;
+    muS = 0.8;
+    v0 = 0.2;
+%     phiRes = sign(eta) .* (epsilon + (1 - epsilon) * exp(-a*abs(eta)));
+%     phiRes = sqrt(2*a) * eta * exp(-a*eta^2 + 1/2);
+
+%         phiRes = 0.4 * exp(-abs(eta) / 0.01) + 0.45 * exp(-abs(eta) / 0.1) + 0.35; %stefania model 1
+%     phiRes = muD + ((muS - muD) * v0) / (v0 + eta); %stefania model 2
+    phiRes = sign(eta) * (0.4 * exp(-abs(eta) / 0.01) + 0.45 * exp(-abs(eta) / 0.1) + 0.35); % charlotte model
+    
+end
