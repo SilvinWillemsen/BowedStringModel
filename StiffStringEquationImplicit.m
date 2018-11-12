@@ -41,33 +41,36 @@ A = sqrt(2*a)*exp(1/2);
 % User variables
 Vb = 0.2;               % Bowing speed
 Fb = 50;               % Bowing force
-bowPoint = N/4;  % Bowing Position
 pickup = floor(N/3);    % Pickup position
 
 % Initialise variables for Newton Raphson 
 tol = 1e-4;
 qSave = zeros (lengthSound, 1);
 qPrev = 0;
-qPrev2 = 0;
 
-drawString = true;
+drawString = false;
 
 vectorRepresentation = true;
 
 vec = 3:N-2;
 
+% Introduce an extra gridpoint at the beginning of the interpolated state vectors 
 uINext = zeros(N+1,1);
 uI = zeros(N+1,1);
 uIPrev = zeros(N+1,1);
 
-% Set start/end time/position of the moving bow 
+% Set start and end time of the moving bow 
 start = fs;
-startPoint = N/4 + 1;
 ending = fs*2;
+
+% Set start and end position of the moving bow
+startPoint = N/4 + 1;
 endPoint = N/4 + 2;
 
 for t = 1 : lengthSound
     if bc == "clamped"
+        
+        % Move the bow point
         if t < start
             bowPoint = startPoint;
         elseif t >= start && t < ending
@@ -81,11 +84,11 @@ for t = 1 : lengthSound
         uSave = u;
         uI(2:end-1) = u(1:end-1) * (1-alpha) + u(2:end) * alpha;
         uIPrev(2:end-1) = uPrev(1:end-1) * (1-alpha) + uPrev(2:end) * alpha;
-        if alpha == 0
-            bp = bowPoint + 1;
-        else
-            bp = ceil(bowPoint);
-        end
+        
+        % Set the bowpoint
+        bp = floor(bowPoint) + 1;
+        
+        J = 1/h;
         
         % Newton-Raphson
         b = 2/k * Vb - (2/k^2)*(uI(bp)-uIPrev(bp)) -(gamma/h)^2*(uI(bp+1) - 2*uI(bp) + uI(bp-1))...
@@ -94,12 +97,12 @@ for t = 1 : lengthSound
               - (uIPrev(bp+1) - 2 * uIPrev(bp) + uIPrev(bp-1)));
         eps = 1;
         i = 0;
-        qPrev2=0;
+        qPrev=0;
         while eps>tol
-            q=qPrev2-(1/h*Fb*A*qPrev2*exp(-a*qPrev2^2)+2*qPrev2/k+b)/...
-             (1/h*Fb*A*(1-2*a*qPrev2^2)*exp(-a*qPrev2^2)+2/k);
-            eps = abs(q-qPrev2);
-            qPrev2 = q;
+            q=qPrev-(J*Fb*A*qPrev*exp(-a*qPrev^2)+2*qPrev/k+b)/...
+             (J*Fb*A*(1-2*a*qPrev^2)*exp(-a*qPrev^2)+2/k);
+            eps = abs(q-qPrev);
+            qPrev = q;
             i = i + 1;
             if i > 10000
                 disp("whut")
@@ -117,14 +120,15 @@ for t = 1 : lengthSound
               / (1 + s0 * k);
         uINext(bp) = 2 * k * (q + Vb) + uIPrev(bp);
 
-        % Interpolate back (and make sure that clamped boundary condition is honoured)
+        % Interpolate back to the original grid point locations (and make sure that clamped boundary condition is honoured)
         uNext(3:N-2) = uINext(3:end-3) * alpha + uINext(4:end-2) * (1-alpha);
         u(3:N-2) = uI(3:end-3) * alpha + uI(4:end-2) * (1-alpha);
     end
     
-    if drawString == false && mod(t,1) == 0 && t >= start - 100
-        lowRange = 28;
-        highRange = 33;
+    % Plot
+    if drawString == true && mod(t,1) == 0 && t >= start - 100
+        lowRange = 17;
+        highRange = 27;
         range = lowRange:highRange;
         
         subplot(2,1,1);
@@ -148,59 +152,11 @@ for t = 1 : lengthSound
         title(strcat("\alpha = ", string(alpha)));
         drawnow;
     end
+    
     out(t) = uNext(pickup);
+    
     uPrev = u;
     u = uNext;
 end
 
-winSize = 2^12;
-overlap = 2^8;
-% spectrogram(out*100,hanning(winSize),overlap,[],fs, 'MinThresh', -100,'yaxis')
 plot(out);
-
-% For loop
-% if vectorRepresentation == false
-%     for l = 2 : N - 1
-%         if l > 2 && l < N - 1
-%             % Newton Raphson
-%             if l == floor(bowPoint)
-% %                     if l == bowPoint
-%                 alpha = (bowPoint - floor(bowPoint));
-% %                     J = -1/h * (...
-% %                         (alpha * (alpha - 1) * (alpha - 2))/ -6 * u(l-1) ...
-% %                         + ((alpha - 1) * (alpha + 1) * (alpha - 2)) / 2 * u(l) ...
-% %                         + (alpha * (alpha + 1) * (alpha - 2))/ -2 * u(l+1) ...
-% %                         + (alpha * (alpha + 1) * (alpha - 1)) / 6 * u(l+2));
-% 
-%                 uI(2:end-1) = u(1:end-1) * (1-alpha) + u(2:end) * alpha;
-%                 uIPrev(2:end-1) = uPrev(1:end-1) * (1-alpha) + uPrev(2:end) * alpha;
-%                 bp = ceil(bowPoint);
-% 
-%                 b = 2/k * Vb - (2/k^2)*(uI(bp)-uIPrev(bp)) -(gamma/h)^2*(uI(bp+1) - 2*uI(bp) + uI(bp-1))...
-%                     + kappa^2/h^4 * (uI(bp+2) - 4*uI(bp+1) + 6*uI(bp) - 4*uI(bp-1) + uI(bp-2)) + 2 * s0 * Vb ...
-%                     - (2*s1/(k*h^2)) * ((uI(bp+1) - 2 * uI(bp) + uI(bp-1)) ...
-%                       - (uIPrev(bp+1) - 2 * uIPrev(bp) + uIPrev(bp-1)));
-%                 eps = 1;
-%                 i = 0;
-%                 while eps>tol
-%                     q=qPrev-(1/h * Fb*A*qPrev*exp(-a*qPrev^2)+2*qPrev/k+b)/...
-%                      (1/h * Fb*A*(1-2*a*qPrev^2)*exp(-a*qPrev^2)+2/k);
-%                     eps = abs(q-qPrev);
-%                     qPrev = q;
-%                     i = i + 1;
-%                     if i > 10000
-%                         disp('whut')
-%                     end
-%                 end
-%                 qSave(t) = q;
-%                 uNextI(bp) = 2 * k * (q + Vb) + uIPrev(bp);
-%             elseif l ~= ceil(bowPoint)
-%                 uNext(l) = (2 * u(l) - uPrev(l) + lambdaSq * (u(l+1) -2 * u(l) + u(l-1)) ...
-%                       - muSq * (u(l+2) - 4*u(l+1) + 6*u(l) - 4*u(l-1) + u(l-2)) ...
-%                       + s0 * k * uPrev(l) + (2*s1*k)/h^2 ...
-%                       * ((u(l+1) - 2 * u(l) + u(l-1)) ...
-%                       - (uPrev(l+1) - 2 * uPrev(l) + uPrev(l-1)))) ...
-%                       / (1 + s0 * k);
-%             end
-%         end
-%     end
