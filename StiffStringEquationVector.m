@@ -9,7 +9,7 @@ k = 1/fs;       % Time-step
 s0 = 0.1;       % Damping coefficients
 s1 = 0.005;
 
-B = 0.001; %inharmonicity coefficient
+B = 0.0001; %inharmonicity coefficient
 kappa = sqrt(B)*(gamma/pi); % Stiffness Factor     
 
 % Calculate grid spacing
@@ -38,7 +38,7 @@ BM = sqrt(2*a)*exp(1/2);
 
 % User variables
 Vb = 0.2;               % Bowing speed
-Fb = 50;
+Fb = 50;                % Bowing force / total mass of bow
 pickup = floor(N/3);    % Pickup position
 
 % Initialise variables for Newton Raphson 
@@ -61,9 +61,9 @@ C = sparse(2:N, 1:N-1, -phi * ones(1, N-1), N, N) + ...
                 sparse(1:N-1, 2:N, -phi * ones(1, N-1), N, N);
             
 % Matrices for b in NR 
-kOh = (kappa/h)^2;
+kOh = (kappa/h^2)^2;
 gOh = (gamma/h)^2;
-phi = (2 * s1)/(k*h^2);
+phi = (2 * s1)/(k * h^2);
 bB = (sparse(3:N, 1:N-2, kOh * ones(1, N-2), N, N) + ...
                 sparse(2:N, 1:N-1, (-4 * kOh - gOh - phi) * ones(1, N-1), N, N) + ...
                 sparse(1:N, 1:N, (6*kOh + 2 * gOh - 2/k^2 + 2 * phi) * ones(1, N), N, N) + ...
@@ -78,11 +78,11 @@ start = fs;
 ending = fs*2;
 
 % Set start and end position of the moving bow
-startPoint = N/4;
-endPoint = 3*N/4;
+startPoint = floor(N/4);
+endPoint = floor(N/4);
 
-interpolation = "none"; % (none, linear, cubic) 
-useExcitation = false; % Has to be true when using linear or cubic interpolation
+interpolation = "cubic"; % (none, linear, cubic) 
+useExcitation = true; % Has to be true when using linear or cubic interpolation
 
 for t = 1 : lengthSound
     
@@ -94,6 +94,10 @@ for t = 1 : lengthSound
     else
         bowPoint = endPoint;
     end
+    
+    % Change bowing speed
+    speed = 10;
+    Vb = 0.2 * sin(speed * pi * t / fs);
     
     % Set alpha (0-1)
     alpha = bowPoint - floor(bowPoint);
@@ -123,31 +127,28 @@ for t = 1 : lengthSound
     eps = 1;
     i = 0;
     while eps>tol
-        q=qPrev-(1/h*Fb*BM*qPrev*exp(-a*qPrev^2)+2*qPrev/k+2*s0*qPrev+b)/...
-         (1/h*Fb*BM*(1-2*a*qPrev^2)*exp(-a*qPrev^2)+2/k+2*s0);
+        q=qPrev-(Fb*BM*qPrev*exp(-a*qPrev^2)+2*qPrev/k+2*s0*qPrev+b)/...
+         (Fb*BM*(1-2*a*qPrev^2)*exp(-a*qPrev^2)+2/k+2*s0);
         eps = abs(q-qPrev);
         qPrev = q;
         i = i + 1;
         if i > 10000
-            disp('whut');
+            disp('Nope');
         end
     end
     qSave(t) = q;
-
-    if useExcitation == true 
-        excitation = h^5*J*Fb*BM*exp(-a*q^2); % Need to scale with h^5 to get close to a bowing sound
+    if useExcitation == true
+        excitation = k^2*J*Fb*BM*q*exp(-a*q^2);
         uNext = A\(B * u + C * uPrev) - excitation;
     else
-    % Update uNext at the bowpoint as is done in A.3 of book
         uNext = A\(B * u + C * uPrev);
         uNext(bp) = 2 * k * (q + Vb) + uPrev(bp);
     end
-    
-
     % Plot
-    if drawString == true && mod(t,1) == 0 %&& t >= start - 100
+    if drawString == true && mod(t,10) == 0 %&& t >= start - 100
         clf;
-        plot(u);
+        plot(uNext);
+        ylim([-1e-4 1e-4])
         hold on;
         drawnow;
     end
