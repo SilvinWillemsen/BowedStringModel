@@ -41,12 +41,7 @@ for n = 2:lengthSound
     else
         g = sqrt(K * (alpha+1) / 2) * subplus(eta)^((alpha - 1)/2);
     end
-%     g = 0;
-%     if eta > b
-% %         temp = eta;
-%         phi = K/(alpha+1) * eta^(alpha + 1);
-%         g = (K*eta^alpha)/sqrt(2 * phi);
-%     end
+
     gSave(n) = g;
     %% Update the scheme
     A = M / k^2 + g^2 / 4;
