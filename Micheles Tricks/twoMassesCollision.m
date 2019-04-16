@@ -4,10 +4,10 @@ fs = 44100;
 k = 1/fs;
 
 drawThings = true;
-drawSpeed = 100;
+drawSpeed = 10;
 
 f1 = 50;
-f2 = 700;
+f2 = 80;
 w1 = 2 * pi * f1;
 w2 = 2 * pi * f2;
 M1 = 0.1;
@@ -63,7 +63,9 @@ for n = 2:lengthSound
     u2Next(n) = 2 * u2 - u2Prev + (-M2 * w2^2 * u2 - (g^2/4 * (etaNext - etaPrev) + psiPrev * g)) * k^2/M2;
     
     %% Update Psi
-    psi = psiPrev + 0.5 * g * (etaNext - etaPrev);
+    if g ~= 0
+    end
+    psi = psiPrev + 0.5 * g * (etaNext - etaPrev)
     psiPrev = psi; 
     
     %% Update states
