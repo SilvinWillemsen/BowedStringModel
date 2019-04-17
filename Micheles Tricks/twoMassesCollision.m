@@ -63,9 +63,7 @@ for n = 2:lengthSound
     u2Next(n) = 2 * u2 - u2Prev + (-M2 * w2^2 * u2 - (g^2/4 * (etaNext - etaPrev) + psiPrev * g)) * k^2/M2;
     
     %% Update Psi
-    if g ~= 0
-    end
-    psi = psiPrev + 0.5 * g * (etaNext - etaPrev)
+    psi = psiPrev + 0.5 * g * (etaNext - etaPrev);
     psiPrev = psi; 
     
     %% Update states

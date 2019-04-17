@@ -7,7 +7,7 @@ k = 1/fs;
 
 %% Drawing Functions
 drawThings = true;
-drawSpeed = 1;
+drawSpeed = 100;
 lengthSound = 1 * fs;
 drawStart = 0;
 
@@ -19,7 +19,7 @@ A = r^2 * pi;
 c = f0 * 2;         % Wave-Speed
 T = c^2 * rho * A;  % Tension
 k = 1 / fs;         % Time step
-E = 2e11;           % Young's modulus
+E = 0;           % Young's modulus
 I = r^4 * pi / 4;   % Area moment of inertia
 L = 1;              % String Length
 kappa = sqrt (E*I / (rho*A));   % Stiffness coefficient
@@ -41,10 +41,10 @@ u1Next = zeros(N, 1);
 %% Mass Variables
 f1 = 500;            % fundamental frequency [Hz]
 w1 = 2 * pi * f1;   % angular frequency
-M = 0.001;
-u2 = -0.1;
-u2Prev = -0.11;
-u2Next = 0;
+M = 0.01;
+u2 = 0;
+u2Prev = 0.1;
+u2Next = 0.1;
 
 %% Collision Variables
 alpha = 1.3;
@@ -58,12 +58,12 @@ eta = u2Prev - u1Prev(cL);
 etaNext = u2 - u1(cL);
 
 %% Excitation (raised cosine)
-% width = 20;
-% loc = 1/pi;
-% startIdx = floor(floor(loc * N) - width / 2);
-% endIdx = floor(floor(loc * N) + width / 2);
-% u1(startIdx : endIdx) = u1(startIdx : endIdx) + (1 - cos(2 * pi * [0:width]' / width)) / 2;
-% u1Prev = u1;
+width = 20;
+loc = 1/2;
+startIdx = floor(floor(loc * N) - width / 2);
+endIdx = floor(floor(loc * N) + width / 2);
+u1(startIdx : endIdx) = u1(startIdx : endIdx) + (1 - cos(2 * pi * [0:width]' / width)) / 2;
+u1Prev = u1;
 
 %% Initialise Energy Vectors
 kinEnergy1 = zeros(lengthSound, 1);
@@ -87,8 +87,9 @@ v = zeros(N, 1);
 vec = 3:N-2;
 eVec = 2:N-1; % energy vector
 J = zeros(N,1);
-J(cL) = 1/h;
+J(cL) = 1;
 outputPos = floor(N / 3);
+scaleH = 1;
 for n = 2:lengthSound
     %% Calculate energy of the system
     kinEnergy1(n) = rho * A / 2 * h * sum((1/k * (u1 - u1Prev)).^2);
@@ -116,27 +117,24 @@ for n = 2:lengthSound
     end
 
     %% Calculate etaNext (STILL NEED TO INCLUDE DAMPING)
-    etaNextDiv =  1 + g^2 / 4 * k^2 / M + g^2 / 4 * k^2 / (rho * A);
+    etaNextDiv =  1 + g^2 / 4 * k^2 / M + g^2 / (4 * scaleH) * k^2 / (rho * A);
     etaNextV = (M / k^2 * (2 * u2 - u2Prev) - M * w1^2 * u2 + g^2 / 4 * etaPrev - psiPrev * g) * k^2 / M...
         - (rho * A / k^2 * (2 * u1(cL) - u1Prev(cL)) + T / h^2 * (u1(cL+1) - 2 * u1(cL) + u1(cL-1))...
-        - g^2 / 4 * etaPrev + psiPrev * g) * k^2 / (rho * A);
+        - E * I / h^4 * (u1(cL+2) - 4 * u1(cL+1) + 6 * u1(cL) - 4 * u1(cL-1) + u1(cL-2))...
+        - (g^2 / 4 * etaPrev + psiPrev * g) / scaleH) * k^2 / (rho * A);
 %         - E * I / h^4 * (u1(cL+2) - 4 * u1(cL+1) + 6 * u1(cL) - 4 * u1(cL-1) + u1(cL-2))...
     etaNext = etaNextV / etaNextDiv;
-    if n > 153
-    end
     
     %% Update FDS
 %     Adiv(vec) = rho * A / k^2;
-    u1Next(vec) = 2 * u1(vec) - u1Prev(vec) + (T / h^2 * (u1(vec+1) - 2 * u1(vec) + u1(vec-1)) ...
+    u1Next(vec) = (rho * A / k^2 * (2 * u1(vec) - u1Prev(vec)) + T / h^2 * (u1(vec+1) - 2 * u1(vec) + u1(vec-1)) ...
          - E * I / h^4 * (u1(vec+2) - 4 * u1(vec+1) + 6 * u1(vec) - 4 * u1(vec-1) + u1(vec-2))...
          + J(vec) * (g^2/4 * (etaNext - etaPrev) + psiPrev * g)) * k^2 / (rho * A);
 %     u1Next(vec) = v(vec) ./ Adiv(vec);
 
-    u2Next = 2 * u2 - u2Prev + (-M * w1^2 * u2 - g^2 / 4 * (etaNext - etaPrev) - psiPrev * g) * k^2 / M;
+    u2Next = (M / k^2 * (2 * u2 - u2Prev) - M * w1^2 * u2 - g^2 / 4 * (etaNext - etaPrev) - psiPrev * g) * k^2 / M;
 %     u2Next(n) = 2 * u2 - u2Prev + (-M2 * w2^2 * u2 - (g^2/4 * (etaNext - etaPrev) + psiPrev * g)) * k^2/M2;
     %% Update Psi
-    if g ~= 0
-    end
     psi = psiPrev + 0.5 * g * (etaNext - etaPrev);
     
 %     %% Calculate rate-of-changes in energies for checking damping (inner product of delta tdot with scheme) 
@@ -166,11 +164,11 @@ for n = 2:lengthSound
         subplot(2,1,2);
         cla
 %         plot(totEnergy(100:n) / totEnergy(100) - 1)
-        plot(totEnergy(100:n) - totEnergy(100));
-        hold on; 
-        plot(energy1(100:n) - energy1(100));
-        plot(energy2(100:n) - energy2(100));
-        plot(colEnergy(100:n) - colEnergy(100));
+        plot(totEnergy(10:n) - totEnergy(10));
+%         hold on; 
+%         plot(energy1(10:n) - energy1(10));
+%         plot(energy2(10:n) - energy2(10));
+%         plot(colEnergy(10:n) - colEnergy(10));
 %         plot(colEnergy(100:n) / colEnergy(100) - 1)
 %         if s0 == 0 && s1 == 0
 %             plot(totEnergy(10:n) / totEnergy(10) - 1);
