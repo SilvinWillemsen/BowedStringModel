@@ -6,8 +6,8 @@ fs = 44100;
 k = 1/fs;
 
 %% Drawing Functions
-drawThings = false;
-drawSpeed = 1000;
+drawThings = true;
+drawSpeed = 1;
 lengthSound = 1 * fs;
 drawStart = 0;
 
@@ -18,13 +18,13 @@ r1 = 0.001;
 A1 = r1^2 * pi;
 c1 = f1 * 2;         % Wave-Speed
 T1 = c1^2 * rho1 * A1;  % Tension
-E1 = 2e11;           % Young's modulus
+E1 = 0;           % Young's modulus
 I1 = r1^4 * pi / 4;   % Area moment of inertia
 L1 = 1;              % String Length
 kappa1 = sqrt (E1*I1 / (rho1*A1));   % Stiffness coefficient
 
 % Damping coefficients
-s01 = rho1 * A1 * 10;
+s01 = rho1 * A1 * 0;
 s11 = 0;
 scaleFac1 = 1; % (scaling with mass/unit length)
 
@@ -44,13 +44,13 @@ r2 = 0.001;
 A2 = r2^2 * pi;
 c2 = f2 * 2;         % Wave-Speed
 T2 = c2^2 * rho2 * A2;  % Tension
-E2 = 2e11;           % Young's modulus
+E2 = 0;           % Young's modulus
 I2 = r2^4 * pi / 4;   % Area moment of inertia
 L2 = 1;              % String Length
 kappa2 = sqrt (E2*I2 / (rho2*A2));   % Stiffness coefficient
 
 % Damping coefficients
-s02 = rho2 * A2 * 1;
+s02 = rho2 * A2 * 0;
 s12 = 0;
 scaleFac2 = 1; % (scaling with mass/unit length)
 
@@ -167,7 +167,7 @@ for n = 2:lengthSound
         + s01 / k * u1Prev(vec1)...
         - (g(vec1).^2 / 4 .* etaPrev(vec1) - psiPrev(vec1) .* g(vec1))) * k^2 / (rho1 * A1));
     etaNext(vec1) = etaNextV(vec1) ./ etaNextDiv(vec1);
-%     etaNext(1:2)
+    
     %% Update FDS
 %     Adiv(vec) = rho * A / k^2;
     u1Next(vec1) = (rho1 * A1 / k^2 * (2 * u1(vec1) - u1Prev(vec1)) + T1 / h1^2 * (u1(vec1+1) - 2 * u1(vec1) + u1(vec1-1)) ...
@@ -179,7 +179,7 @@ for n = 2:lengthSound
          - E2 * I2 / h2^4 * (u2(vec2+2) - 4 * u2(vec2+1) + 6 * u2(vec2) - 4 * u2(vec2-1) + u2(vec2-2))...
          + s02 / k  * u2Prev(vec2) ...
          - (g(vec2).^2/4 .* (etaNext(vec2) - etaPrev(vec2)) + psiPrev(vec2) .* g(vec2))) * 1 / ((rho2 * A2) / k^2 + s02 / k);
-%      
+
     %% Update Psi
     psi(vec1) = psiPrev(vec1) + 0.5 * g(vec1) .* (etaNext(vec1) - etaPrev(vec1));
     
@@ -221,7 +221,10 @@ for n = 2:lengthSound
         subplot(2,1,2);
         cla
 %         plot(totEnergy(10:n) / totEnergy(10) - 1)
-        plot(rOCTotEnergy(10:n));
+plot(energy1(10:n));
+hold on;
+plot(energy2(10:n));
+%         plot(rOCTotEnergy(10:n));
 % %         plot(psi)
 %         hold on; 
 %         plot(rOCdamp0Energy1(10:n))

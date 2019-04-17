@@ -54,13 +54,22 @@ for n = 2:lengthSound
         g = sqrt(K * (alpha+1) / 2) * subplus(eta)^((alpha - 1)/2);
     end
     
-    %% Update etaNext
-    etaNext = (2 * u2 - u2Prev + (-M2 * w2^2 * u2 + g^2/4 * etaPrev - psiPrev * g) * k^2 / M2 ...
-        - (2 * u1 - u1Prev + (-M1 * w1^2 * u1 - g^2 / 4 * etaPrev + psiPrev * g) * k^2 / M1)) ...
-        / (1 + g^2/4 * k^2 / M2 + g^2/4 * k^2/M1);
-
-    u1Next(n) = 2 * u1 - u1Prev + (-M1 * w1^2 * u1 + (g^2/4 * (etaNext - etaPrev) + psiPrev * g)) * k^2/M1;
-    u2Next(n) = 2 * u2 - u2Prev + (-M2 * w2^2 * u2 - (g^2/4 * (etaNext - etaPrev) + psiPrev * g)) * k^2/M2;
+    %% Matrix form
+    Amat = [M1/k^2+g.^2/4, -g.^2/4;...
+            -g.^2/4, M2/k^2+g.^2/4];
+    answ = [M1 / k^2 * (2 * u1 - u1Prev) - M1 * w1^2 * u1 - g.^2/4 * etaPrev + psiPrev .* g;...
+            M2 / k^2 * (2 * u2 - u2Prev) - M2 * w2^2 * u2 + g.^2/4 * etaPrev - psiPrev .* g];
+    u1u2 = Amat\answ;
+    u1Next(n) = u1u2(1);
+    u2Next(n) = u1u2(2);
+    etaNext = u2Next(n) - u1Next(n);
+    
+    %% Non-matrix form
+%     etaNext = (2 * u2 - u2Prev + (-M2 * w2^2 * u2 + g^2/4 * etaPrev - psiPrev * g) * k^2 / M2 ...
+%         - (2 * u1 - u1Prev + (-M1 * w1^2 * u1 - g^2 / 4 * etaPrev + psiPrev * g) * k^2 / M1)) ...
+%         / (1 + g^2/4 * k^2 / M2 + g^2/4 * k^2/M1);
+%     u1Next(n) = 2 * u1 - u1Prev + (-M1 * w1^2 * u1 + (g^2/4 * (etaNext - etaPrev) + psiPrev * g)) * k^2/M1;
+%     u2Next(n) = 2 * u2 - u2Prev + (-M2 * w2^2 * u2 - (g^2/4 * (etaNext - etaPrev) + psiPrev * g)) * k^2/M2;
     
     %% Update Psi
     psi = psiPrev + 0.5 * g * (etaNext - etaPrev);

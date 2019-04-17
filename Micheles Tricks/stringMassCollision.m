@@ -7,7 +7,7 @@ k = 1/fs;
 
 %% Drawing Functions
 drawThings = true;
-drawSpeed = 100;
+drawSpeed = 10;
 lengthSound = 1 * fs;
 drawStart = 0;
 
@@ -19,13 +19,13 @@ A = r^2 * pi;
 c = f0 * 2;         % Wave-Speed
 T = c^2 * rho * A;  % Tension
 k = 1 / fs;         % Time step
-E = 0;           % Young's modulus
+E = 2e11;           % Young's modulus
 I = r^4 * pi / 4;   % Area moment of inertia
 L = 1;              % String Length
 kappa = sqrt (E*I / (rho*A));   % Stiffness coefficient
 
 % Damping coefficients
-s0 = 0;
+s0 = 2 * rho * A;
 s1 = 0;
 scaleFac = rho * A; % (scaling with mass/unit length)
 
@@ -33,29 +33,23 @@ scaleFac = rho * A; % (scaling with mass/unit length)
 h = sqrt((c^2*k^2 + 4*s1*scaleFac*k + sqrt((c^2*k^2 + 4*s1*scaleFac*k)^2+16*kappa^2*k^2)) / 2);
 N = floor(1/h);
 h = 1/N;
-
-u1 = zeros(N, 1);
-u1Prev = zeros(N, 1);
-u1Next = zeros(N, 1);
+offset = 0.1;
+u1 = zeros(N, 1) + offset;
+u1Prev = zeros(N, 1) + offset;
+u1Next = zeros(N, 1) + offset;
 
 %% Mass Variables
 f1 = 500;            % fundamental frequency [Hz]
 w1 = 2 * pi * f1;   % angular frequency
-M = 0.01;
-u2 = 0;
-u2Prev = 0.1;
-u2Next = 0.1;
+M = 0.1;
+u2 = -0.01;
+u2Prev = -0.01;
+% u2Next = -0.1;
 
 %% Collision Variables
 alpha = 1.3;
 K = 5 * 10^6;
-cL = floor (N / 2); % collision location
-
-%% Initialise
-etaPrev = u2 - u1(cL);
-psiPrev = 0;
-eta = u2Prev - u1Prev(cL);
-etaNext = u2 - u1(cL);
+cL = floor (N / 6); % collision location
 
 %% Excitation (raised cosine)
 width = 20;
@@ -64,6 +58,12 @@ startIdx = floor(floor(loc * N) - width / 2);
 endIdx = floor(floor(loc * N) + width / 2);
 u1(startIdx : endIdx) = u1(startIdx : endIdx) + (1 - cos(2 * pi * [0:width]' / width)) / 2;
 u1Prev = u1;
+
+%% Initialise
+etaPrev = u2 - u1(cL);
+psiPrev = 0;
+eta = u2Prev - u1Prev(cL);
+etaNext = u2 - u1(cL);
 
 %% Initialise Energy Vectors
 kinEnergy1 = zeros(lengthSound, 1);
@@ -74,12 +74,19 @@ potEnergy2 = zeros(lengthSound, 1);
 energy2 = zeros(lengthSound, 1);
 colEnergy = zeros(lengthSound, 1);
 totEnergy = zeros(lengthSound, 1);
-rOCkinEnergy = zeros(lengthSound, 1);
-rOCpotEnergy = zeros(lengthSound, 1);
-rOCcolEnergy = zeros(lengthSound, 1);
+rOCkinEnergy1 = zeros(lengthSound, 1);
+rOCpotEnergy1 = zeros(lengthSound, 1);
+rOCcolEnergy1 = zeros(lengthSound, 1);
 rOCdamp0Energy = zeros(lengthSound, 1);
 rOCdamp1Energy = zeros(lengthSound, 1);
-rOCtotEnergy = zeros(lengthSound, 1);
+rOCTotEnergy1 = zeros(lengthSound, 1);
+
+rOCkinEnergy2 = zeros(lengthSound, 1);
+rOCpotEnergy2 = zeros(lengthSound, 1);
+rOCcolEnergy2 = zeros(lengthSound, 1);
+rOCTotEnergy2 = zeros(lengthSound, 1);
+
+rOCTotEnergy = zeros(lengthSound, 1);
 
 Adiv = zeros(N, 1);
 v = zeros(N, 1);
@@ -87,7 +94,7 @@ v = zeros(N, 1);
 vec = 3:N-2;
 eVec = 2:N-1; % energy vector
 J = zeros(N,1);
-J(cL) = 1;
+J(cL) = 1 / h;
 outputPos = floor(N / 3);
 scaleH = 1;
 for n = 2:lengthSound
@@ -115,36 +122,48 @@ for n = 2:lengthSound
     else
         g = sqrt(K * (alpha+1) / 2) * subplus(eta)^((alpha - 1)/2);
     end
-
-    %% Calculate etaNext (STILL NEED TO INCLUDE DAMPING)
-    etaNextDiv =  1 + g^2 / 4 * k^2 / M + g^2 / (4 * scaleH) * k^2 / (rho * A);
-    etaNextV = (M / k^2 * (2 * u2 - u2Prev) - M * w1^2 * u2 + g^2 / 4 * etaPrev - psiPrev * g) * k^2 / M...
-        - (rho * A / k^2 * (2 * u1(cL) - u1Prev(cL)) + T / h^2 * (u1(cL+1) - 2 * u1(cL) + u1(cL-1))...
-        - E * I / h^4 * (u1(cL+2) - 4 * u1(cL+1) + 6 * u1(cL) - 4 * u1(cL-1) + u1(cL-2))...
-        - (g^2 / 4 * etaPrev + psiPrev * g) / scaleH) * k^2 / (rho * A);
+    %% Matrix Form
+    Amat = [rho*A/k^2+g.^2/(4*h)+s0/k, -g.^2/(4*h);...
+            -g.^2/4, M/k^2+g.^2/4];
+    answ = [rho*A/k^2 * (2 * u1(cL) - u1Prev(cL)) + T / h^2 * (u1(cL+1) - 2 * u1(cL) + u1(cL-1)) ...
+            - E * I / h^4 * (u1(cL+2) - 4 * u1(cL+1) + 6 * u1(cL) - 4 * u1(cL-1) + u1(cL-2))...
+            + s0 / k * u1Prev(cL)...
+            - (g.^2 / 4 * etaPrev - psiPrev .* g) / h;...
+            M / k^2 * (2 * u2 - u2Prev) - M * w1^2 * u2 + g.^2/4 * etaPrev - psiPrev .* g];
+    solut = Amat\answ;
+    etaNext = solut(2) - solut(1);
+    %% Non-Matrix Form (WITHOUT DAMPING)
+%     etaNextDiv =  1 + g^2 / 4 * k^2 / M + g^2 / 4 * k^2 / (rho * A * h);
+%     etaNextV = (M / k^2 * (2 * u2 - u2Prev) - M * w1^2 * u2 + g^2 / 4 * etaPrev - psiPrev * g) * k^2 / M...
+%         - (rho * A / k^2 * (2 * u1(cL) - u1Prev(cL)) + T / h^2 * (u1(cL+1) - 2 * u1(cL) + u1(cL-1))...
 %         - E * I / h^4 * (u1(cL+2) - 4 * u1(cL+1) + 6 * u1(cL) - 4 * u1(cL-1) + u1(cL-2))...
-    etaNext = etaNextV / etaNextDiv;
+%         - (g^2 / 4 * etaPrev - psiPrev * g) / h) * k^2 / (rho * A);
+%     etaNext = etaNextV / etaNextDiv;
     
     %% Update FDS
 %     Adiv(vec) = rho * A / k^2;
     u1Next(vec) = (rho * A / k^2 * (2 * u1(vec) - u1Prev(vec)) + T / h^2 * (u1(vec+1) - 2 * u1(vec) + u1(vec-1)) ...
          - E * I / h^4 * (u1(vec+2) - 4 * u1(vec+1) + 6 * u1(vec) - 4 * u1(vec-1) + u1(vec-2))...
-         + J(vec) * (g^2/4 * (etaNext - etaPrev) + psiPrev * g)) * k^2 / (rho * A);
-%     u1Next(vec) = v(vec) ./ Adiv(vec);
+         + s0 / k * u1Prev(vec)...
+         + J(vec) * (g^2/4 * (etaNext - etaPrev) + psiPrev * g)) / (rho * A / k^2 + s0/k);
 
     u2Next = (M / k^2 * (2 * u2 - u2Prev) - M * w1^2 * u2 - g^2 / 4 * (etaNext - etaPrev) - psiPrev * g) * k^2 / M;
-%     u2Next(n) = 2 * u2 - u2Prev + (-M2 * w2^2 * u2 - (g^2/4 * (etaNext - etaPrev) + psiPrev * g)) * k^2/M2;
+    if drawThings
+        etaNext - (u2Next - u1Next(cL))
+    end
     %% Update Psi
-    psi = psiPrev + 0.5 * g * (etaNext - etaPrev);
+    psi = psiPrev + 0.5 * g .* (etaNext - etaPrev);
     
-%     %% Calculate rate-of-changes in energies for checking damping (inner product of delta tdot with scheme) 
-%     rOCkinEnergy(n) = h * rho * A / (2 * k^3) * sum((u1Next - 2 * u1 + u1Prev) .* (u1Next - u1Prev));
-%     rOCpotEnergy(n) = h * T / (2*k*h^2) * sum((u1(vec+1) - 2 * u1(vec) + u1(vec-1)).* (u1Next(vec) - u1Prev(vec))) ...
-%          - h * E * I / (2 * k * h^4) * sum((u1(vec+2) - 4 * u1(vec+1) + 6 * u1(vec) - 4 * u1(vec-1) + u1(vec-2)) .* (u1Next(vec) - u1Prev(vec)));%...
-%     rOCdamp0Energy(n) = -scaleFac * 2 * s0 * h / (4 * k^2) * sum((u1Next - u1Prev).^2);
+%     %% Calculate rate-of-changes in energy for checking damping (inner product of delta t-dot with scheme)     
+    rOCkinEnergy1(n) = h * rho * A / (2 * k^3) * sum((u1Next - 2 * u1 + u1Prev) .* (u1Next - u1Prev));
+    rOCpotEnergy1(n) = h * T / (2*k*h^2) * sum((u1(vec+1) - 2 * u1(vec) + u1(vec-1)).* (u1Next(vec) - u1Prev(vec))) ...
+         - h * E * I / (2 * k * h^4) * sum((u1(vec+2) - 4 * u1(vec+1) + 6 * u1(vec) - 4 * u1(vec-1) + u1(vec-2)) .* (u1Next(vec) - u1Prev(vec)));%...
+    rOCdamp0Energy(n) = -2 * s0 * h / (4 * k^2) * sum((u1Next - u1Prev).^2);
 %     rOCdamp1Energy(n) = scaleFac * 2 * h * s1 / (2 * k^2 * h^2) * sum((u1(eVec+1) - 2 * u1(eVec) + u1(eVec-1)) .* (u1Prev(eVec+1) - 2 * u1Prev(eVec) + u1Prev(eVec-1)) .* (u1Next(eVec) - u1Prev(eVec)));
-%     rOCcolEnergy(n) = h / (4 * k) * sum(g .* (psi + psiPrev) .* (u1Next - u1Prev));
-%     rOCTotEnergy(n) = rOCkinEnergy(n) - rOCpotEnergy(n) - rOCdamp0Energy(n) - rOCdamp1Energy(n) - rOCcolEnergy(n); %including damping so should be 0
+    energy1(n) = rOCkinEnergy1(n) - rOCpotEnergy1(n) - rOCdamp0Energy(n);
+    rOCcolEnergy(n) = 1 / (4 * k) * g * (psi + psiPrev) * (u1Next(cL) - u1Prev(cL));
+   
+    rOCTotEnergy(n) = rOCkinEnergy1(n) - rOCpotEnergy1(n) - rOCdamp0Energy(n) - rOCdamp1Energy(n) - rOCcolEnergy(n); %including damping so should be 0
     %% Update states
     psiPrev = psi; 
     u1Prev = u1;
@@ -163,36 +182,14 @@ for n = 2:lengthSound
        
         subplot(2,1,2);
         cla
-%         plot(totEnergy(100:n) / totEnergy(100) - 1)
-        plot(totEnergy(10:n) - totEnergy(10));
+        plot(rOCTotEnergy(10:n));
 %         hold on; 
-%         plot(energy1(10:n) - energy1(10));
-%         plot(energy2(10:n) - energy2(10));
-%         plot(colEnergy(10:n) - colEnergy(10));
-%         plot(colEnergy(100:n) / colEnergy(100) - 1)
-%         if s0 == 0 && s1 == 0
-%             plot(totEnergy(10:n) / totEnergy(10) - 1);
-%             title("Total normalised energy");
-%         else
-%             plot(totEnergy(10:n));
-%             title("Total energy")
-%         end
-%         subplot(2,2,3);
-%         cla
-% %         totEnergyPlot(n) = totEnergy(n) / totEnergy(10) - 1;
-%         plot(rOCkinEnergy(10:n));
-%         hold on;
-%         plot(rOCpotEnergy(10:n), '--');
-%         plot(rOCdamp0Energy(10:n));
-%         plot(rOCdamp1Energy(10:n));
-%         plot(rOCcolEnergy(10:n));
-%         title("Rate-of-Change")
-%         legend(["Kin", "Pot", "$s_0$", "$s_1$", "Coll"], 'interpreter', 'latex')
-%         subplot(2,2,4)
-%         plot(rOCTotEnergy(10:n));
-% %         hold on;
-% %         plot(rOCdampEnergy(10:n));
-%         title("Total Rate-of-Change in energy");
+%         plot(rOCcolEnergy1(10:n));
+%         plot(rOCcolEnergy2(10:n));
+% % plot(energy1(10:n));
+% hold on;
+% plot(energy2(10:n));
+% plot(colEnergy(10:n));
         drawnow
     end
 end
