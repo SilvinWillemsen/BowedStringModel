@@ -7,12 +7,12 @@ k = 1/fs;
 
 %% Drawing Functions
 drawThings = false;
-drawSpeed = 1;
-lengthSound = 3 * fs;
+drawSpeed = 1000;
+lengthSound = 1 * fs;
 drawStart = 0;
 
 %% String Variables
-f0 = 110.00;    
+f0 = 110;    
 rho = 7850;
 r = 0.0005;
 A = r^2 * pi;
@@ -25,7 +25,7 @@ L = 1;              % String Length
 kappa = sqrt (E*I / (rho*A));   % Stiffness coefficient
 
 % Damping coefficients
-s0 = 2 * rho * A;
+s0 = 0 * rho * A;
 s1 = 0;
 
 % Grid spacing
@@ -38,8 +38,9 @@ u1Prev = zeros(N, 1) + offset;
 u1Next = zeros(N, 1) + offset;
 
 %% Bridge offset
-b = 0.1;
-eps = 0.005; % distance between mass and bridge/string to prevent errors (mass sticking to string)
+b = 0.0;
+barrier = -1e-6;
+eps = 0.000; % distance between mass and bridge/string to prevent errors (mass sticking to string)
 %% Mass Variables
 f1 = 0;            % fundamental frequency [Hz]
 w1 = 2 * pi * f1;   % angular frequency
@@ -61,14 +62,29 @@ u1(3:cL) = (1:cL-2) / (cL - 2) * (b+2*eps);
 u1(cL:N-1) = (N-1-cL:-1:0) / (N-1-cL) * (b+2*eps);
 u1Prev = u1;
 
-%% Excitation (raised cosine)
-width = 20;
-loc = 1/2;
-startIdx = floor(floor(loc * N) - width / 2);
-endIdx = floor(floor(loc * N) + width / 2);
-amp = 0.5;
-u1(startIdx : endIdx) = u1(startIdx : endIdx) + amp * (1 - cos(2 * pi * [0:width]' / width)) / 2;
-u1Prev = u1;
+%% Excitation
+excitation = "bowed";
+if excitation == "bowed"
+    alphaBow = 100;
+    bp = floor(3 / pi *  N);
+    BM = sqrt(2 * alphaBow) * exp(1/2);
+    FbInit = 5 * rho * A;
+    VbInit = 0.2;
+    bowRamp = 5000; % number of samples that Fb and Vb will ramp up
+    if bowRamp == 0
+        Vrel = (u1(bp) - u1Prev(bp)) / k - VbInit;
+    else
+        Vrel = 0;
+    end
+else
+    width = 20;
+    loc = 1/2;
+    startIdx = floor(floor(loc * N) - width / 2);
+    endIdx = floor(floor(loc * N) + width / 2);
+    amp = 0.5;
+    u1(startIdx : endIdx) = u1(startIdx : endIdx) + amp * (1 - cos(2 * pi * [0:width]' / width)) / 2;
+    u1Prev = u1;
+end
 
 %% Initialise
 etaPrevMS = u2 - u1(cL);
@@ -76,10 +92,10 @@ psiPrevMS = 0;
 etaMS = u2Prev - u1Prev(cL);
 etaNextMS = u2 - u1(cL);
 
-etaPrevMB = b - u2;
+etaPrevMB = barrier - u2;
 psiPrevMB = 0;
-etaMB = b - u2Prev;
-etaNextMB = b - u2;
+etaMB = barrier - u2Prev;
+etaNextMB = barrier - u2;
 
 %% Initialise Energy Vectors
 kinEnergy1 = zeros(lengthSound, 1);
@@ -110,10 +126,17 @@ v = zeros(N, 1);
 
 vec = 3:N-2;
 eVec = 2:N-1; % energy vector
-J = zeros(N,1);
-J(cL) = 1 / h;
+Jbr = zeros(N,1);
+Jbr(cL) = 1 / h;
+
+Jbow = zeros(N,1);
+Jbow(bp) = 1 / h;
+
 outputPos = floor(N / 3);
 scaleH = 1;
+figure;
+grid on;
+set(gca, 'Linewidth', 2)
 for n = 2:lengthSound
     %% Calculate energy of the system
     kinEnergy1(n) = rho * A / 2 * h * sum((1/k * (u1 - u1Prev)).^2);
@@ -154,9 +177,24 @@ for n = 2:lengthSound
         gMB = sqrt(KMB * (alphaMB+1) / 2) * subplus(etaMB)^((alphaMB - 1)/2);
     end
     gMBsave(n) = gMB;
+    
+    %% Bow ramp
+    if n < bowRamp
+        Vb = VbInit * n / bowRamp;
+        Fb = FbInit * n / bowRamp;
+    else
+        Vb = VbInit;
+        Fb = FbInit;
+    end
+    %% Estimate new relative velocity
+    Vrel = 2 / k * (u1(bp) - u1Prev(bp)) - Vrel - 2 * Vb;
+    Btot = Fb * sqrt(2 * alphaBow) * exp(-alphaBow * Vrel^2 + 1/2);
+    
     %% Matrix Form
-    Amat = [rho*A/k^2+gMS.^2/(4*h)+s0/k, -gMS.^2/(4*h);...
-            -gMS.^2/4, M/k^2 + gMS.^2/4 + gMB.^2/4];
+    Amat = [rho*A/k^2 + gMS.^2/(4*h) + s0/k,...
+            -gMS.^2/(4*h);...
+            -gMS.^2/4,...
+            M/k^2 + gMS.^2/4 + gMB.^2/4];
     answ = [rho*A/k^2 * (2 * u1(cL) - u1Prev(cL)) + T / h^2 * (u1(cL+1) - 2 * u1(cL) + u1(cL-1)) ...
             - E * I / h^4 * (u1(cL+2) - 4 * u1(cL+1) + 6 * u1(cL) - 4 * u1(cL-1) + u1(cL-2))...
             + s0 / k * u1Prev(cL)...
@@ -166,18 +204,19 @@ for n = 2:lengthSound
     solut = Amat\answ;
     
     etaNextMS = solut(2) - solut(1);
-    etaNextMB = b - solut(2);
+    etaNextMB = barrier - solut(2);
     u2Next = solut(2);
     
     %% Update FDS
     u1Next(vec) = (rho * A / k^2 * (2 * u1(vec) - u1Prev(vec)) + T / h^2 * (u1(vec+1) - 2 * u1(vec) + u1(vec-1)) ...
          - E * I / h^4 * (u1(vec+2) - 4 * u1(vec+1) + 6 * u1(vec) - 4 * u1(vec-1) + u1(vec-2))...
          + s0 / k * u1Prev(vec)...
-         + J(vec) * (gMS^2/4 * (etaNextMS - etaPrevMS) + psiPrevMS * gMS)) / (rho * A / k^2 + s0/k);
+         + Jbr(vec) * (gMS^2/4 * (etaNextMS - etaPrevMS) + psiPrevMS * gMS)...
+         + Jbow(vec) .* (Btot / (2*k) * u1Prev(vec) + Btot * Vb)) ./ (rho * A / k^2 + s0/k + Jbow(vec) * Btot / (2*k));
 
      if drawThings
-        etaNextMS - (u2Next - u1Next(cL))
-        etaNextMB - (b - u2Next)
+        etaNextMS - (u2Next - u1Next(cL));
+        etaNextMB - (b - u2Next);
     end
     %% Update Psi
     psiMS = psiPrevMS + 0.5 * gMS .* (etaNextMS - etaPrevMS);
@@ -210,18 +249,24 @@ for n = 2:lengthSound
     out(n) = u1Next(outputPos);
     %% Draw functions
     if mod(n,drawSpeed) == 0 && n >= drawStart && drawThings == true
-        subplot(2,1,1);
+%         subplot(2,1,1);
         cla
-        plot(u1Next);
+        plot(u1Next, 'Linewidth', 2);
         hold on;
-        scatter(cL, u2Next);
-        scatter(cL, b);
-        subplot(2,1,2);
-        cla
+        scatter(cL, u2Next, 400, '.');
+        plot([cL-1, cL+1], [barrier barrier], 'Linewidth', 5);
+        if ~strcmp(excitation, "bowed")
+            ylim([-amp, amp])
+        end
+        grid on; 
+        set(gca, 'Linewidth', 2, 'Fontsize', 16)
+        legend(["String", "Bridge", "Body"])
+%         subplot(2,1,2);
+%         cla
         if s0 == 0 && s1 == 0
 %             plot(kinEnergy2(10:n))
 %             hold on;
-            plot(totEnergy(10:n) / totEnergy(10) - 1)
+%             plot(totEnergy(10:n) / totEnergy(10) - 1)
 %             plot(potEnergy2(10:n))
 %             plot(colEnergyMB(10:n))
 %             plot(totEnergy(10:n) / totEnergy(10) - 1);
@@ -232,10 +277,10 @@ for n = 2:lengthSound
 %             hold on; 
 %             plot(rOCpotEnergy2(10:n));
 %             plot(rOCcolEnergy2(10:n));
-            plot(rOCTotEnergy(10:n));
+%             plot(rOCTotEnergy(10:n));
 %             hold on;
 %             plot(rOCcolEnergy1(10:n));
-            title("Rate of change total energy");
+%             title("Rate of change total energy");
         end
         drawnow
     end

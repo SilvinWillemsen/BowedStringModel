@@ -4,7 +4,6 @@ close all;
 fs = 44100;
 L = 1;
 c = 196*2;
-BC = "Dir";
 k = 1 / fs;     % Time step
 h = c * k;      % Grid spacing
 BP = 1/pi;      % Bowing Position
@@ -57,7 +56,6 @@ Fb = 50;
 a = 100;
 
 BM = sqrt(2 * a) * exp(1/2);
-
 bp = floor(BP * N);
 q2 = -VbInit;
 % qPrev = -Vb;
@@ -134,4 +132,4 @@ end
 plot(out); 
 hold on;
 plot(out2)
-legend(["Output Simple backwards","Output Tricks"])
+legend(["Output NR","Output Tricks"])
