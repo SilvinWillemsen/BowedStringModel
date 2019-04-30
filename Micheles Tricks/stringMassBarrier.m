@@ -335,7 +335,7 @@ for n = 2:lengthSound
 % %             hold on;
 %             plot(totEnergy(10:n) / totEnergy(10) - 1)
 % %             plot(potEnergy2(10:n))
-% %             plot(colEnergyMB(10:n))
+            plot(colEnergyMB(10:n))
 % %             plot(totEnergy(10:n) / totEnergy(10) - 1);
 % % plot(gMBsave)
 % %             title("Normalised total energy");
@@ -345,7 +345,7 @@ for n = 2:lengthSound
 % %             plot(rOCpotEnergy2(10:n));
 % %             plot(rOCdamp1Energy(10:n));
 % %             hold on;
-            plot(rOCTotEnergy(10:n));
+%             plot(rOCTotEnergy(10:n));
 % %             hold on;
 % %             plot(rOCcolEnergy1(10:n));
 % %             title("Rate of change total energy");

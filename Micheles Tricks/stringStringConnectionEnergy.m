@@ -50,7 +50,7 @@ cL2 = floor (N2 / 2); % bridge location
 
 %% Non-linear Spring Variables
 K1 = 1000;
-K3 = 0;
+K3 = 1000;
 etaSpring = u1(cL1) - u2(cL2);
 etaSpringPrev = u1(cL1) - u2(cL2);
 
@@ -129,11 +129,10 @@ for n = 2:lengthSound
     varPhi = K1/4 + (K3 * etaSpring^2)/2;
 %     Falpha = (-u1Next(cL1) + u2Next(cL2) * varPhi - (K1 * etaSpring) / 2 - etaSpringPrev * varPhi) / (2/h1 * varPhi + 1);
 %  
-%     Falpha = ((K1 / 2 * etaSpring) / varPhi + etaSpringPrev + u1Next(cL1) - u2Next(cL1))...
-%         / (1 / varPhi + k^2 * rho * A / h1 + k^2 * rho * A / h2);
-    Falpha = (u1Next(cL1) - u2Next(cL2) + 2 * etaSpring + etaSpringPrev)...
-        / (4 / K1 + k^2 / (h1 * rho * A) + k^2 / (h2 * rho * A));
-%     end
+%     Falpha = (u1Next(cL1) - u2Next(cL2) + 2 * etaSpring + etaSpringPrev)...
+%         / (4 / K1 + k^2 / (h1 * rho * A) + k^2 / (h2 * rho * A));
+    Falpha = (u1Next(cL1) - u2Next(cL2) + etaSpringPrev + K1 * etaSpring / (2 * varPhi)) ...
+       / (1 / varPhi + k^2 / (h1 * rho * A) + k^2 / (h2 * rho * A));
     u1Next = u1Next - (Jbr1 * Falpha) * (k^2 / (rho * A));
     u2Next = u2Next + (Jbr2 * Falpha) * (k^2 / (rho * A));
 
@@ -150,10 +149,9 @@ for n = 2:lengthSound
         .* (u2Prev(eVec+1) - 2 * u2Prev(eVec) + u2Prev(eVec-1)));
     energy2(n) = kinEnergy2(n) + potEnergy2(n);
     
-    connEnergy(n) = K1 / 2 * (1/2 * (etaSpring + etaSpringPrev))^2;
+    connEnergy(n) = K1 / 2 * (1/2 * (etaSpring + etaSpringPrev))^2 ...
+        + K3 / 2 * (1/2 * etaSpring^2 * etaSpringPrev^2);
     
- 
-%     colEnergy(n) = 1/2 * psiPrev^2;
     totEnergy(n) = energy1(n) + energy2(n) + connEnergy(n);
 
 %% Update states

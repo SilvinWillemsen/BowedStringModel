@@ -3,15 +3,15 @@ close all;
 fs = 44100;
 k = 1/fs;
 
-f0 = 110;
+f0 = 10;
 w0 = 2 * pi * f0;
 M = 0.01;
 % M = k * K / ((2 * pi * f0)^2);
 
 lengthSound = 2 * fs;
 
-u = -1;
-uPrev = -1;
+u = -0.1;
+uPrev = -0.1;
 
 %% Simple mass-spring
 % for n = 2:lengthSound
@@ -20,7 +20,7 @@ uPrev = -1;
 %     u = uNext(n);
 % end
 alpha = 1.3;
-K = 5 * 10^6;
+K = 5 * 10^10;
 b = 0;
 phiPrev = 0;
 etaPrev = uPrev - b;
@@ -47,7 +47,7 @@ for n = 2:lengthSound
     A = M / k^2 + g^2 / 4;
     v = M / k^2 * (2 * u - uPrev) - M * w0^2 * u + g^2 / 4 * uPrev - psiPrev * g;
     uNext(n) = v / A;
-  
+%     uNext(n) = 2 * u - uPrev - k^2 * w0^2 * u;
     
     %% Update Psi
     psi = psiPrev + 0.5 * g * ((uNext(n) - b) - etaPrev);
@@ -64,7 +64,7 @@ for n = 2:lengthSound
         plot(uNext(1:n));
         hold on; plot(bSave(1:n));
         subplot(2,1,2);
-        plot(energy(1:n));
+        plot(energy(10:n) / energy(10) - 1);
         drawnow
     end
 end

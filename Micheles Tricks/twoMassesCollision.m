@@ -3,15 +3,15 @@ close all;
 fs = 44100;
 k = 1/fs;
 
-drawThings = true;
+drawThings = false;
 drawSpeed = 10;
 
-f1 = 50;
-f2 = 80;
+f1 = 5;
+f2 = 100;
 w1 = 2 * pi * f1;
 w2 = 2 * pi * f2;
-M1 = 0.1;
-M2 = 0.01;
+M1 = 1;
+M2 = 0.0001;
 
 lengthSound = 2 * fs;
 
