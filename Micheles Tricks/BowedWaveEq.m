@@ -82,8 +82,8 @@ for n = 1 : lengthSound
     eps = 1;
     i = 0;
     while eps>tol
-        q=qPrev-(Fb*BM*qPrev*exp(-a*qPrev^2)+2*qPrev/k+2*s0*qPrev+b)/...
-         (Fb*BM*(1-2*a*qPrev^2)*exp(-a*qPrev^2)+2/k+2*s0);
+        q=qPrev-(1/h * Fb*BM*qPrev*exp(-a*qPrev^2)+2*qPrev/k+2*s0*qPrev+b)/...
+         (1/h * Fb*BM*(1-2*a*qPrev^2)*exp(-a*qPrev^2)+2/k+2*s0);
         eps = abs(q-qPrev);
         qPrev = q;
         i = i + 1;

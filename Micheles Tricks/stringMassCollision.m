@@ -1,4 +1,4 @@
-clear all;
+    clear all;
 close all;
 
 %% Sample rate
@@ -6,8 +6,8 @@ fs = 44100;
 k = 1/fs;
 
 %% Drawing Functions
-drawThings = true;
-drawSpeed = 10;
+drawThings = false;
+drawSpeed = 1;
 lengthSound = 1 * fs;
 drawStart = 0;
 
@@ -25,7 +25,7 @@ L = 1;              % String Length
 kappa = sqrt (E*I / (rho*A));   % Stiffness coefficient
 
 % Damping coefficients
-s0 = 0 * rho * A;
+s0 = 2 * rho * A;
 s1 = 0;
 scaleFac = rho * A; % (scaling with mass/unit length)
 
@@ -48,7 +48,7 @@ u2Prev = -0.1;
 
 %% Collision Variables
 alpha = 1.3;
-K = 5 * 10^6;
+K = 0 * 10^6;
 cL = floor (N / 6); % collision location
 
 %% Excitation (raised cosine)
