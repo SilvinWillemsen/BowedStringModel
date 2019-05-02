@@ -6,7 +6,7 @@ fs = 44100;
 k = 1/fs;
 
 %% Drawing Functions
-drawThings = false;
+drawThings = true;
 drawSpeed = 1;
 lengthSound = 1 * fs;
 drawStart = 0;

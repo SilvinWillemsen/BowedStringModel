@@ -4,12 +4,12 @@ close all;
 fs = 44100;
 k = 1/fs;
 
-drawThings = true;
+drawThings = false;
 drawSpeed = 5;
 collision = true;
 lengthSound = 1 * fs;
-drawStart = lengthSound - 2 * drawSpeed;
-% drawStart = 0;
+% drawStart = lengthSound - 2 * drawSpeed;
+drawStart = 0;
 
 f0 = 110.00;    
 rho = 7850;
@@ -23,7 +23,7 @@ I = r^4 * pi / 4;
 L = 1;
 kappa = sqrt (E*I / (rho*A));
 s0 = 1;
-s1 = 0.00;
+s1 = 0.005;
 scaleFac = rho * A;
 % scaleFac = 1;
 h = sqrt((c^2*k^2 + 4*s1*scaleFac*k + sqrt((c^2*k^2 + 4*s1*scaleFac*k)^2+16*kappa^2*k^2)) / 2);
@@ -105,7 +105,7 @@ for n = 2:lengthSound
     v(vec) = rho * A / k^2 * (2 * u(vec) - uPrev(vec)) + T / h^2 * (u(vec+1) - 2 * u(vec) + u(vec-1)) ...
          - E * I / h^4 * (u(vec+2) - 4 * u(vec+1) + 6 * u(vec) - 4 * u(vec-1) + u(vec-2))...
          + scaleFac * s0 / k * uPrev(vec) ...
-         + scaleFac * 2 * s1 / (h^2 * k) * (u(vec+1) - 2 * u(vec) + u(vec-1)) .* (uPrev(vec+1) - 2 * uPrev(vec) + uPrev(vec-1))...
+         + scaleFac * 2 * s1 / (h^2 * k) * (u(vec+1) - 2 * u(vec) + u(vec-1) - uPrev(vec+1) + 2 * uPrev(vec) - uPrev(vec-1))...
          + g(vec).^2/4 .* uPrev(vec) + psiPrev(vec) .* g(vec);
     uNext(vec) = v(vec) ./ Adiv(vec);
     etaNext = b - uNext;
@@ -118,7 +118,7 @@ for n = 2:lengthSound
     rOCpotEnergy(n) = h * T / (2*k*h^2) * sum((u(vec+1) - 2 * u(vec) + u(vec-1)).* (uNext(vec) - uPrev(vec))) ...
          - h * E * I / (2 * k * h^4) * sum((u(vec+2) - 4 * u(vec+1) + 6 * u(vec) - 4 * u(vec-1) + u(vec-2)) .* (uNext(vec) - uPrev(vec)));%...
     rOCdamp0Energy(n) = -scaleFac * 2 * s0 * h / (4 * k^2) * sum((uNext - uPrev).^2);
-    rOCdamp1Energy(n) = scaleFac * 2 * h * s1 / (2 * k^2 * h^2) * sum((u(eVec+1) - 2 * u(eVec) + u(eVec-1)) .* (uPrev(eVec+1) - 2 * uPrev(eVec) + uPrev(eVec-1)) .* (uNext(eVec) - uPrev(eVec)));
+    rOCdamp1Energy(n) = scaleFac * 2 * h * s1 / (2 * k^2 * h^2) * sum((u(eVec+1) - 2 * u(eVec) + u(eVec-1) - uPrev(eVec+1) + 2 * uPrev(eVec) - uPrev(eVec-1)) .* (uNext(eVec) - uPrev(eVec)));
     rOCcolEnergy(n) = h / (4 * k) * sum(g .* (psi + psiPrev) .* (uNext - uPrev));
     rOCTotEnergy(n) = rOCkinEnergy(n) - rOCpotEnergy(n) - rOCdamp0Energy(n) - rOCdamp1Energy(n) - rOCcolEnergy(n); %including damping so should be 0
     %% Update states
