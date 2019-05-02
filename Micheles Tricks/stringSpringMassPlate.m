@@ -40,7 +40,7 @@ u1Next = zeros(NS, 1) + offset;
 courantNoS = c^2 * k^2 / hS^2 + 4 * kappaS^2 * k^2 / hS^4
 
 %% Mass Variables
-f1 = 1000;            % fundamental frequency [Hz] (doesn't work with offset)
+f1 = 0;            % fundamental frequency [Hz] (doesn't work with offset)
 w1 = 2 * pi * f1;   % angular frequency
 M = 0.001;
 u2 = offset;
@@ -49,7 +49,7 @@ u2Next = u2;
 
 %% Plate Variables
 Lx = 0.5;
-Ly = 0.5;
+Ly = 2;
 rhoP = 7850;
 EP = 2e11;
 H = 0.005;
@@ -73,7 +73,7 @@ alpha = 1.3;
 K = 5 * 10^10;
 
 %% Non-linear Spring Variables
-K1 = 0;
+K1 = 100000;
 K3 = 0;
 etaSpring = u1(cL) - u2;
 etaSpringPrev = u1(cL) - u2;
@@ -156,38 +156,54 @@ for n = 2:lengthSound
     u2Next = (M / k^2 * (2 * u2 - u2Prev) - M * w1^2 * u2) * k^2 / M;
     u3Next = BP * u3 + CP * u3Prev;
     
-%     etaNext = ((rhoP * H / k^2 * (2 * u3(brP) - u3Prev(brP)) - D / hP^4 * Denergy(brP, :) * u3 + (g^2 / 4 * etaPrev - psiPrev * g) / hP^2) / (rhoP * H / k^2)...
-%         - (M / k^2 * (2 * u2 - u2Prev) - M * w1^2 * u2 - g^2 / 4 * etaPrev + psiPrev * g) / (M / k^2))...
-%         / (1 + g^2 / (4 * hP^2 * (rhoP * H / k^2)) + g^2 / (4 * (M / k^2)));
     %% Add connection forces
     varPhi = K1 / 4 + K3 * etaSpring^2 / 2;
     varPsi = k^2 / (hS * (rhoS * A)) + (1/(M / k^2 + g^2/4)) + 1 / varPhi;
     if varPhi == 0
-        Falpha = 0;
+%         Falpha = 0;
+        FalphaTick = 0;
     else
-        Falpha = (u1Next(cL) - u2Next + K1 * etaSpring / (2 * varPhi) + etaSpringPrev) / varPsi;
+%         Falpha = (u1Next(cL) - u2Next + K1 * etaSpring / (2 * varPhi) + etaSpringPrev) / varPsi;
+        FalphaTick = (K1 * etaSpring / (2 * varPhi) + etaSpringPrev + u1Next(cL)...
+            -(M/k^2 * u2Next - g^2/4 * etaPrev + psiPrev * g) / (M / k^2 + g^2 / 4)) / varPsi;
     end
-%     
-    u1Next = u1Next - (Jbr * Falpha) * (k^2 / (rhoS * A));
-    Adiv = [M/k^2 + g^2/4, -g^2/4; ...
-            -g^2/(4 * hP^2), rhoP * H / k^2 + g^2 / (4 * hP^2)];
-    v = [M / k^2 * (2 * u2 - u2Prev) - M * w1^2 * u2 + Falpha - g^2 / 4 * etaPrev + psiPrev * g; ...
-         rhoP * H / k^2 * (2 * u3(brP) - u3Prev(brP)) - D * DD(brP, :) * u3 + (g^2 / 4 * etaPrev - psiPrev * g) / hP^2];
-
-    solut = Adiv\v;
-    etaNext = solut(2) - solut(1);
-    u2Next = solut(1); 
-
-%     Adiv = [M/k^2 + g^2/4 - (g^2 * k^2/(4*M)) / varPsi, -g^2/4 + (g^2 * k^2 / (4*M)) / varPsi;...
-%             -g^2/(4 * hP^2), rhoP * H / k^2 + g^2 / (4 * hP^2)];
-%     v = [M / k^2 * (2 * u2 - u2Prev) - M * w1^2 * u2 ...
-%         + (u1Next - (u2Next - g^2 * k^2 / (4*M) * etaPrev + psiPrev * g * k^2 / M) + K1 * etaSpring / (2*varPhi) + etaSpringPrev) / varPsi ...
-%         - g^2 / 4 * etaPrev + psiPrev * g; ...
-%         rhoP * H / k^2 * (2 * u3(brP) - u3Prev(brP)) - D * DD(brP, :) * u3 + (g^2 / 4 * etaPrev - psiPrev * g) / hP^2];
+    plateTerm = (g^2/4)/(varPsi * (M / k^2 + g^2 / 4));
     
+    Adiv = [rhoS * A / k^2 + s0S / k,         0,                  -plateTerm;...
+                   0,                 M / k^2 + g^2 / 4,      plateTerm - g^2 / 4; ...
+                   0,                 -g^2 / (4 * hP^2),   rhoP * H / k^2 + g^2 / (4*hP^2)];
+    
+    v = [rhoS * A / k^2 * (2 * u1(cL) - u1Prev(cL)) + T / hS^2 * (u1(cL+1) - 2 * u1(cL) + u1(cL-1)) ...
+         - ES * I / hS^4 * (u1(cL+2) - 4 * u1(cL+1) + 6 * u1(cL) - 4 * u1(cL-1) + u1(cL-2)) - FalphaTick / hS...
+         + s0S / k * u1Prev(cL)...
+         + 2 * s1S / (hS^2 * k) * (u1(cL+1) - 2 * u1(cL) + u1(cL-1) - u1Prev(cL+1) + 2 * u1Prev(cL) - u1Prev(cL-1)); ...
+         M / k^2 * (2 * u2 - u2Prev) - M * w1^2 * (u2 - offset) - g^2 / 4 * etaPrev + psiPrev * g + FalphaTick; ...
+         rhoP * H / k^2 * (2 * u3(brP) - u3Prev(brP)) - D * DD(brP, :) * u3 + (g^2 / 4 * etaPrev - psiPrev * g) / hP^2];
+    
+    solut = Adiv \ v;
+    u2Next = solut(2);
+    Falpha = FalphaTick - plateTerm * solut(3);
+    etaNext = solut(3) - u2Next;
+    u1Next = u1Next - (Jbr * Falpha) / ((rhoS * A) / k^2 + s0S / k);
     u3Next = u3Next - JbrP * (g^2 / 4 * (etaNext - etaPrev) + psiPrev * g) * (k^2 / (rhoP * H));
     
-    etaNext - (u3Next(brP) - u2Next)
+%     Adiv = [M/k^2 + g^2/4, -g^2/4; ...
+%             -g^2/(4 * hP^2), rhoP * H / k^2 + g^2 / (4 * hP^2)];
+%     v = [M / k^2 * (2 * u2 - u2Prev) - M * w1^2 * u2 + Falpha - g^2 / 4 * etaPrev + psiPrev * g; ...
+%          rhoP * H / k^2 * (2 * u3(brP) - u3Prev(brP)) - D * DD(brP, :) * u3 + (g^2 / 4 * etaPrev - psiPrev * g) / hP^2];
+% 
+%     solut = Adiv\v;
+%     etaNext = solut(2) - solut(1);
+%     u2Next = solut(1); 
+%     
+%     u3Next = u3Next - JbrP * (g^2 / 4 * (etaNext - etaPrev) + psiPrev * g) * (k^2 / (rhoP * H));
+    
+    if drawThings
+        etaNext - (u3Next(brP) - u2Next)
+    end
+    
+    etaSpringNext = u1Next(cL) - u2Next;
+    
     %% Update Psi
     psi = psiPrev + 0.5 * g .* (etaNext - etaPrev);
     
@@ -201,7 +217,7 @@ for n = 2:lengthSound
     
     % Energy Mass
     kinEnergy2(n) = M / 2 * (1/k * (u2 - u2Prev)).^2;
-    potEnergy2(n) = M / 2 * w1^2 * (u2 * u2Prev);
+    potEnergy2(n) = M / 2 * w1^2 * ((u2 - offset) * (u2Prev - offset));
     energy2(n) = kinEnergy2(n) + potEnergy2(n);
     
     % Energy Plate
@@ -223,9 +239,20 @@ for n = 2:lengthSound
          - hS * ES * I / (2 * k * hS^4) * sum((u1(vec+2) - 4 * u1(vec+1) + 6 * u1(vec) - 4 * u1(vec-1) + u1(vec-2)) .* (u1Next(vec) - u1Prev(vec)));%...
     rOCdamp0Energy(n) = -rhoS * A * 2 * s0S * hS / (4 * k^2) * sum((u1Next - u1Prev).^2);
     rOCdamp1Energy(n) = rhoS * A * 2 * hS * s1S / (2 * k^2 * hS^2) * sum((u1(eVec+1) - 2 * u1(eVec) + u1(eVec-1) - u1Prev(eVec+1) + 2 * u1Prev(eVec) - u1Prev(eVec-1)) .* (u1Next(eVec) - u1Prev(eVec)));
-    rOCcolEnergy1(n) = hS / (4 * k) * sum(g .* (psi + psiPrev) .* (u1Next - u1Prev));
-    rOCcolEnergy2(n) = -hP^2 / (4 * k) * sum(g .* (psi + psiPrev) .* (u3Next(brP) - u3Prev(brP)));
-    rOCTotEnergy(n) = rOCkinEnergy1(n) - rOCpotEnergy1(n) - rOCdamp0Energy(n) - rOCdamp1Energy(n) - rOCcolEnergy1(n); %including damping so should be 0
+    rOCenergy1(n) = rOCkinEnergy1(n) - rOCpotEnergy1(n) - rOCdamp0Energy(n) - rOCdamp1Energy(n);
+    
+    rOCkinEnergy2(n) = M / (2*k^3) * (u2Next - u2Prev) * (u2Next - 2 * u2 + u2Prev);
+    rOCpotEnergy2(n) = -M * w1^2 / (2*k) * (u2Next - u2Prev) * u2;
+    rOCenergy2(n) = rOCkinEnergy2(n) - rOCpotEnergy2(n);
+
+    rOCcolEnergy1(n) = 1 / (4 * k) * sum(g * (psi + psiPrev) .* (u2Next - u2Prev));
+    rOCcolEnergy2(n) = -hP^2 / (4 * k) * sum(g * (psi + psiPrev) .* (u3Next(brP) - u3Prev(brP)));
+    
+    rOCconnEnergy(n) = (K1 / 4 * (etaSpringNext + 2 * etaSpring + etaSpringPrev) ...
+        + K3 / 2 * etaSpring^2 * (etaSpringNext + etaSpringPrev))...
+        * 1/(2*k) * (etaSpringNext - etaSpringPrev);
+    
+    rOCTotEnergy(n) = rOCenergy1(n) + rOCenergy2(n) + rOCconnEnergy(n); %including damping so should be 0
     
     %% Update states
     psiPrev = psi; 
@@ -250,14 +277,14 @@ for n = 2:lengthSound
     %% Draw functions
     if mod(n,drawSpeed) == 0 && n >= drawStart && drawThings == true
         % Draw States of 
-        subplot(4,1,1);
+        subplot(3,2,1);
         cla
         hold on;
         plot(u1Next, 'Linewidth', 2);                           % String
         scatter(cL, u2Next, 400, '.');                          % Mass
 %         plot([cL-1, cL+1], [plateLoc plateLoc], 'Linewidth', 5);  % Barrier
-        subplot(4,1,2)
-        imagesc(reshape(u3Next, [Nx-1,Ny-1]))
+        subplot(3,2,[2, 4, 6])
+        imagesc(reshape(u3Next, [Ny-1,Nx-1]))
         % Set y-limit to the amplitude of the raised cosine
 %         ylim([-amp, amp])
         
@@ -267,18 +294,18 @@ for n = 2:lengthSound
 %         title("State of the system")
 %         legend(["String", "Mass", "Barrier"])
         
-        subplot(4,1,3);
-        if s0S == 0 && s1S == 0
-            % Draw Normalised energy
+        subplot(3,2,3);
+%         if s0S == 0 && s1S == 0
+%             % Draw Normalised energy
             plot(totEnergy(10:n) / totEnergy(10) - 1);
-%             plot(energy3(10:n) / energy3(10) - 1);
-            title("Normalised Energy")
-        else 
+% %             plot(energy3(10:n) / energy3(10) - 1);
+%             title("Normalised Energy")
+%         else 
             % Draw rate of change of the energy
-            plot(rOCTotEnergy(10:n))
-            title("Rate of change of Energy minus damping")
-        end
-        subplot(4,1,4)
+%             plot(rOCTotEnergy(10:n))
+%             title("Rate of change of Energy minus damping")
+%         end
+        subplot(3,2,5)
         cla;
         hold on
 %         plot(energy1(10:n))
