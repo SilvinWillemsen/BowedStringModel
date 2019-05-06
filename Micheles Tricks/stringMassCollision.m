@@ -26,11 +26,12 @@ kappa = sqrt (E*I / (rho*A));   % Stiffness coefficient
 
 % Damping coefficients
 s0 = 2 * rho * A;
-s1 = 0;
+s1 = 0.005;
 scaleFac = rho * A; % (scaling with mass/unit length)
 
 % Grid spacing
-h = sqrt((c^2*k^2 + 4*s1*scaleFac*k + sqrt((c^2*k^2 + 4*s1*scaleFac*k)^2+16*kappa^2*k^2)) / 2);
+h = sqrt((c^2*k^2 + 4*s1*k + sqrt((c^2*k^2 + 4*s1*k)^2+16*kappa^2*k^2)) / 2);
+s1 = s1 * scaleFac;
 N = floor(1/h);
 h = 1/N;
 offset = 0.1;
@@ -48,7 +49,7 @@ u2Prev = -0.1;
 
 %% Collision Variables
 alpha = 1.3;
-K = 0 * 10^6;
+K = 5 * 10^6;
 cL = floor (N / 6); % collision location
 
 %% Excitation (raised cosine)
@@ -128,6 +129,7 @@ for n = 2:lengthSound
     answ = [rho*A/k^2 * (2 * u1(cL) - u1Prev(cL)) + T / h^2 * (u1(cL+1) - 2 * u1(cL) + u1(cL-1)) ...
             - E * I / h^4 * (u1(cL+2) - 4 * u1(cL+1) + 6 * u1(cL) - 4 * u1(cL-1) + u1(cL-2))...
             + s0 / k * u1Prev(cL)...
+            + 2 * s1 / (k * h^2) * (u1(cL+1) - 2 * u1(cL) + u1(cL-1) - u1Prev(cL+1) + 2 * u1Prev(cL) - u1Prev(cL-1))...
             - (g.^2 / 4 * etaPrev - psiPrev .* g) / h;...
             M / k^2 * (2 * u2 - u2Prev) - M * w1^2 * u2 + g.^2/4 * etaPrev - psiPrev .* g];
     solut = Amat\answ;
@@ -146,6 +148,7 @@ for n = 2:lengthSound
     u1Next(vec) = (rho * A / k^2 * (2 * u1(vec) - u1Prev(vec)) + T / h^2 * (u1(vec+1) - 2 * u1(vec) + u1(vec-1)) ...
          - E * I / h^4 * (u1(vec+2) - 4 * u1(vec+1) + 6 * u1(vec) - 4 * u1(vec-1) + u1(vec-2))...
          + s0 / k * u1Prev(vec)...
+         + 2 * s1 / (k * h^2) * (u1(vec+1) - 2 * u1(vec) + u1(vec-1) - u1Prev(vec+1) + 2 * u1Prev(vec) - u1Prev(vec-1))...
          + J(vec) * (g^2/4 * (etaNext - etaPrev) + psiPrev * g)) / (rho * A / k^2 + s0/k);
 
 %     u2Next = (M / k^2 * (2 * u2 - u2Prev) - M * w1^2 * u2 - g^2 / 4 * (etaNext - etaPrev) - psiPrev * g) * k^2 / M;
@@ -161,8 +164,8 @@ for n = 2:lengthSound
     rOCpotEnergy1(n) = h * T / (2*k*h^2) * sum((u1(vec+1) - 2 * u1(vec) + u1(vec-1)).* (u1Next(vec) - u1Prev(vec))) ...
          - h * E * I / (2 * k * h^4) * sum((u1(vec+2) - 4 * u1(vec+1) + 6 * u1(vec) - 4 * u1(vec-1) + u1(vec-2)) .* (u1Next(vec) - u1Prev(vec)));%...
     rOCdamp0Energy(n) = -2 * s0 * h / (4 * k^2) * sum((u1Next - u1Prev).^2);
-%     rOCdamp1Energy(n) = scaleFac * 2 * h * s1 / (2 * k^2 * h^2) * sum((u1(eVec+1) - 2 * u1(eVec) + u1(eVec-1)) .* (u1Prev(eVec+1) - 2 * u1Prev(eVec) + u1Prev(eVec-1)) .* (u1Next(eVec) - u1Prev(eVec)));
-    energy1(n) = rOCkinEnergy1(n) - rOCpotEnergy1(n) - rOCdamp0Energy(n);
+    rOCdamp1Energy(n) = 2 * h * s1 / (2 * k^2 * h^2) * sum((u1(eVec+1) - 2 * u1(eVec) + u1(eVec-1) - u1Prev(eVec+1) + 2 * u1Prev(eVec) - u1Prev(eVec-1)) .* (u1Next(eVec) - u1Prev(eVec)));
+    energy1(n) = rOCkinEnergy1(n) - rOCpotEnergy1(n) - rOCdamp0Energy(n) - rOCdamp1Energy(n);
     rOCcolEnergy1(n) = 1 / (4 * k) * g * (psi + psiPrev) * (u1Next(cL) - u1Prev(cL));
     
     rOCkinEnergy2(n) = M / (2*k^3) * (u2Next - u2Prev) * (u2Next - 2 * u2 + u2Prev);
@@ -193,11 +196,12 @@ for n = 2:lengthSound
              plot(totEnergy(10:n) / totEnergy(10) - 1);
             title("Normalised total energy");
         else
-          plot(rOCTotEnergy(10:n));
-%             plot(r OCTotEnergy(10:n));
+%           plot(rOCTotEnergy(10:n));
+            plot(rOCTotEnergy(10:n));
 %             hold on;
 %             plot(rOCcolEnergy1(10:n));
 %             plot(rOCcolEnergy2(10:n));
+%             plot(rOCcolEnergy1(10:n) + rOCcolEnergy2(10:n));
 %             title("Rate of change total energy");
         end
         drawnow

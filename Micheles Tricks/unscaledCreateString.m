@@ -1,4 +1,4 @@
-function [B, C, N, h, Dxx, Dxxxx] = unscaledCreateString(rho, A, T, E, I, L, s0, s1, k)
+function [B, C, N, h, Dxx, Dxxxx, s0, s1] = unscaledCreateString(rho, A, T, E, I, L, s0, s1, k)
    
     kappa = sqrt(E * I / (rho * A));
     c = sqrt(T/(rho * A));
