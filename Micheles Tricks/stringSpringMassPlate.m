@@ -6,7 +6,7 @@ fs = 44100;
 k = 1/fs;
 
 %% Drawing Functions
-drawThings = true;
+drawThings = false;
 drawSpeed = 10;
 lengthSound = 2 * fs;
 drawStart = 0;
@@ -28,8 +28,8 @@ L = 1;              % String Length
 kappaS = sqrt (ES*I / (rhoS*A));   % Stiffness coefficient
 
 % Damping coefficients
-s0S = 0.0;
-s1S = 0.000;
+s0S = 0.1;
+s1S = 0.005;
 
 [BS, CS, NS, hS, Dxx, Dxxxx] = unscaledCreateString (rhoS, A, T, ES, I, L, s0S, s1S, k);
 
@@ -40,7 +40,7 @@ u1Next = zeros(NS, 1) + offset;
 courantNoS = c^2 * k^2 / hS^2 + 4 * kappaS^2 * k^2 / hS^4
 
 %% Mass Variables
-f1 = 1000;            % fundamental frequency [Hz] (doesn't work with offset)
+f1 = 0;            % fundamental frequency [Hz] (doesn't work with offset)
 w1 = 2 * pi * f1;   % angular frequency
 M = 0.001;
 u2 = offset;
@@ -56,12 +56,12 @@ H = 0.005;
 s0P = 0;
 s1P = 0;
 
-[BP, CP, NP, Nx, Ny, hP, kappaP, Denergy, D, DD] = unscaledCreatePlate (Lx, Ly, rhoS, EP, H, s0P, s1P, k);
+[BP, CP, NP, Nx, Ny, hP, kappaP, Denergy, D, DD] = unscaledCreatePlate (Lx, Ly, rhoP, EP, H, s0P, s1P, k);
 plateLoc = 0; % body offset
 
 u3 = zeros(NP, 1);
 brP = floor(NP / 2 + Nx / 2);
-% u3(brP) = 1;
+u3(brP) = 1;
 u3Prev = zeros(NP, 1);
 u3Next = zeros(NP, 1);
 
@@ -73,8 +73,8 @@ alpha = 1.3;
 K = 5 * 10^10;
 
 %% Non-linear Spring Variables
-K1 = 0;
-K3 = 0;
+K1 = 10000;
+K3 = 1000;
 etaSpring = u1(cL) - u2;
 etaSpringPrev = u1(cL) - u2;
 
@@ -250,13 +250,13 @@ for n = 2:lengthSound
     rOCenergy3(n) = rOCkinEnergy3(n) - rOCpotEnergy3(n);
 
     rOCcolEnergy1(n) = 1 / (4 * k) * sum(g * (psi + psiPrev) .* (u2Next - u2Prev));
-    rOCcolEnergy2(n) = -1 / (4 * k) * sum(g * (psi + psiPrev) .* (u3Next(brP) - u3Prev(brP)));
+    rOCcolEnergy2(n) = -hP^2 / (4 * k) * sum(g * (psi + psiPrev) .* (u3Next(brP) - u3Prev(brP)));
     
     rOCconnEnergy(n) = (K1 / 4 * (etaSpringNext + 2 * etaSpring + etaSpringPrev) ...
         + K3 / 2 * etaSpring^2 * (etaSpringNext + etaSpringPrev))...
         * 1/(2*k) * (etaSpringNext - etaSpringPrev);
     
-    rOCTotEnergy(n) = rOCenergy1(n) + rOCenergy2(n) + rOCenergy3(n) + rOCconnEnergy(n) + rOCcolEnergy1(n) - rOCcolEnergy2(n); %including damping so should be 0
+    rOCTotEnergy(n) = rOCenergy1(n) + rOCenergy2(n) + rOCenergy3(n) + rOCconnEnergy(n) - rOCcolEnergy1(n) - rOCcolEnergy2(n); %including damping so should be 0
     
     %% Update states
     psiPrev = psi; 
@@ -312,11 +312,8 @@ for n = 2:lengthSound
         subplot(3,2,5)
         cla;
         hold on
-%         plot(energy1(10:n))
-%         plot(energy2(10:n))
-%         plot(rOCenergy3(10:n))
-%         plot(rOCpotEnergy3(10:n))
-        plot(colEnergy(10:n))
+        plot(totEnergy(10:n))
+       
         drawnow
     end
 end
