@@ -28,8 +28,8 @@ L = 1;              % String Length
 kappaS = sqrt (ES*I / (rhoS*A));   % Stiffness coefficient
 
 % Damping coefficients
-s0S = 1.0;
-s1S = 0.005;
+s0S = 10.0;
+s1S = 0.05;
 
 [BS, CS, NS, hS, Dxx, Dxxxx, s0S, s1S] = unscaledCreateString (rhoS, A, T, ES, I, L, s0S, s1S, k);
 
@@ -40,9 +40,10 @@ u1Next = zeros(NS, 1) + offset;
 courantNoS = c^2 * k^2 / hS^2 + 4 * kappaS^2 * k^2 / hS^4
 
 %% Mass Variables
-f1 = 0;            % fundamental frequency [Hz] (doesn't work with offset)
+f1 = 100;            % fundamental frequency [Hz] (doesn't work with offset)
 w1 = 2 * pi * f1;   % angular frequency
 M = 0.001;
+R = 0.0;
 u2 = offset;
 u2Prev = u2;
 u2Next = u2;
@@ -72,11 +73,11 @@ courantNoP = kappaP * k / hP^2
 %% Collision Variables
 cL = floor (NS / 8); % bridge location
 alpha = 1.3;
-K = 5* 10^10;
+K = 5 * 10^6;
 
 %% Non-linear Spring Variables
-K1 = 100000;
-K3 = 10000;
+K1 = 10000000;
+K3 = 0;
 etaSpring = u1(cL) - u2;
 etaSpringPrev = u1(cL) - u2;
 
@@ -86,11 +87,11 @@ etaSpringPrev = u1(cL) - u2;
 % u1Prev = u1;
 
 %% Excitation
+amp = 20 * offset;
 width = 10;
 loc = 4/5;
 startIdx = floor(floor(loc * NS) - width / 2);
 endIdx = floor(floor(loc * NS) + width / 2);
-amp = 20 * offset;
 u1(startIdx : endIdx) = u1(startIdx : endIdx) + amp * (1 - cos(2 * pi * [0:width]' / width)) / 2;
 u1Prev = u1;
 
@@ -162,12 +163,12 @@ for n = 2:lengthSound
     %% Update FDSs without connection-force and collision terms 
     strVec = 3:NS-2;
     u1Next(strVec) = BS(strVec, :) * u1 + CS(strVec, :) * u1Prev;
-    u2Next = (M / k^2 * (2 * u2 - u2Prev) - M * w1^2 * u2) * k^2 / M;
+    u2Next = (M / k^2 * (2 * u2 - u2Prev) - M * w1^2 * u2 - R / k * (u2 - u2Prev)) * k^2 / M;
     u3Next = BP * u3 + CP * u3Prev;
     
     %% Calculate connection forces
     varPhi = K1 / 4 + K3 * etaSpring^2 / 2;
-    varPsi = k^2 / (hS * (rhoS * A)) + (1/(M / k^2 + g^2/4)) + 1 / varPhi;
+    varPsi = 1 / (hS * ((rhoS * A) / k^2 + s0S / k)) + (1/(M / k^2 + g^2/4)) + 1 / varPhi;
     if varPhi == 0
 %         Falpha = 0;
         FalphaTick = 0;
@@ -186,7 +187,7 @@ for n = 2:lengthSound
          - ES * I / hS^4 * (u1(cL+2) - 4 * u1(cL+1) + 6 * u1(cL) - 4 * u1(cL-1) + u1(cL-2)) - FalphaTick / hS...
          + s0S / k * u1Prev(cL)...
          + 2 * s1S / (hS^2 * k) * (u1(cL+1) - 2 * u1(cL) + u1(cL-1) - u1Prev(cL+1) + 2 * u1Prev(cL) - u1Prev(cL-1)); ...
-         M / k^2 * (2 * u2 - u2Prev) - M * w1^2 * u2 - g^2 / 4 * etaPrev + psiPrev * g + FalphaTick; ...
+         M / k^2 * (2 * u2 - u2Prev) - M * w1^2 * u2 - R / k * (u2 - u2Prev) - g^2 / 4 * etaPrev + psiPrev * g + FalphaTick; ...
          rhoP * H / k^2 * (2 * u3(brP) - u3Prev(brP)) - D * DD(brP, :) * u3 + (g^2 / 4 * etaPrev - psiPrev * g) / hP^2];
     
     solut = Adiv \ v;
@@ -245,7 +246,8 @@ for n = 2:lengthSound
     % Mass
     rOCkinEnergy2(n) = M / (2*k^3) * (u2Next - u2Prev) * (u2Next - 2 * u2 + u2Prev);
     rOCpotEnergy2(n) = -M * w1^2 / (2*k) * (u2Next - u2Prev) * u2;
-    rOCenergy2(n) = rOCkinEnergy2(n) - rOCpotEnergy2(n);
+    rOCdampMassEnergy(n) = -R / (2 * k^2) * (u2 - u2Prev) * (u2Next - u2Prev);
+    rOCenergy2(n) = rOCkinEnergy2(n) - rOCpotEnergy2(n) - rOCdampMassEnergy(n);
     
     % Plate
     rOCkinEnergy3(n) = hP^2 * rhoP * H / (2*k^3) * sum((u3Next - 2 * u3 + u3Prev) .* (u3Next - u3Prev));
@@ -315,7 +317,7 @@ for n = 2:lengthSound
 % %         plot(rOCenergy2(10:n))
 %         plot(rOCconnEnergy(10:n))
         subplot(3,1,3);
-        if s0S == 390 && s1S == 0
+        if s0S == 0 && s1S == 0
             % Draw Normalised energy
             plot(totEnergy(10:n) / totEnergy(10) - 1);
 %             plot(energy3(10:n) / energy3(10) - 1);
