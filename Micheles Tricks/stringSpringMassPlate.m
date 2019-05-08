@@ -6,13 +6,13 @@ fs = 44100;
 k = 1/fs;
 
 %% Drawing Functions
-drawThings = true;
+drawThings = false;
 drawSpeed = 100;
-lengthSound = 2 * fs;
+lengthSound = fs;
 drawStart = 0;
 damping = true;
 
-%% Offset
+%% Bridge offset and location
 offset = 1e-3;
 bridgeLoc = 1 / 8;
 
@@ -47,12 +47,12 @@ u1Next = zeros(NS, 1) + offset;
 courantNoS = c^2 * k^2 / hS^2 + 4 * kappaS^2 * k^2 / hS^4
 
 %% Mass Variables
-f1 = 1000;            % fundamental frequency [Hz]
-w1 = 2 * pi * f1;   % angular frequency
-M = 0.001;
+f1 = 1;    % fundamental frequency [Hz] (< 1 / (k * pi) (< 14,037 Hz))
+w1 = 2 * pi * f1;   % angular frequency (< 2 / k (< 88,200 rad/s))
+M = 0.01;
 
 if damping
-    R = 1;
+    R = 0.1;
 else
     R = 0;
 end
@@ -63,13 +63,13 @@ u2Next = u2;
 
 %% Plate Variables
 Lx = 0.2;
-Ly = 2;
-rhoP = 0.5;
+Ly = 1.5;
+rhoP = 0.05;
 EP = 2e5;
-H = 0.005;
+H = 0.001;
 
 if damping
-    s0P = 1;
+    s0P = 5;
     s1P = 0.01;
 else
     s0P = 0;
@@ -81,12 +81,12 @@ end
 u3 = zeros(NP, 1);
 horPos = 0.6;
 vertPos = bridgeLoc;
-horOutputPos = 1 / 3;
-vertOutputPos = 1 / 7;
+horOutPos = 1 / 3;
+vertOutPos = 1 / 7;
 
-% brP = floor((Nx * horPos) * (Ny-1) + Nx * vertPos);
-brP = floor((Ny - 1) * horPos * (Nx - 1) + (Ny - 1) * vertPos);
-outputPosPlate = floor(Ny * horPos * Nx + Ny / 2);
+brP = floor((Ny - 1) * floor(horPos * (Nx - 1)) + (Ny - 1) * vertPos);
+outputPosPlate = floor((Ny - 1) * floor(horOutPos * (Nx - 1)) + (Ny - 1) * vertOutPos);
+
 
 % u3(brP) = offset;
 u3Prev = zeros(NP, 1);
@@ -97,7 +97,7 @@ courantNoP = kappaP * k / hP^2
 %% Collision Variables
 cL = floor (NS * bridgeLoc); % bridge location
 alpha = 1.3;
-K = 5 * 10^5;
+K = 5 * 10^10;
 
 %% Non-linear Spring Variables
 K1 = 10000000;
@@ -111,7 +111,7 @@ etaSpringPrev = u1(cL) - u2;
 % u1Prev = u1;
 
 %% Excitation
-amp = 20 * offset;
+amp = 100 * offset;
 width = 10;
 loc = 2/5;
 startIdx = floor(floor(loc * NS) - width / 2);
@@ -339,7 +339,7 @@ for n = 2:lengthSound
         plot([cL-1, cL+1], [u3Next(brP) u3Next(brP)], 'Linewidth', 5);  
             
             % Extra functions
-            ylim([-amp, amp]); % Set y-limit to the amplitude of the raised cosine
+            ylim([-amp / 15, amp / 15]); % Set y-limit to the amplitude of the raised cosine
             grid on; 
             set(gca, 'Linewidth', 2, 'Fontsize', 16)
             title("State of the system")
@@ -375,5 +375,5 @@ for n = 2:lengthSound
     end
 end
 if ~drawThings
-    plot(out)
+    plot(out2)
 end
