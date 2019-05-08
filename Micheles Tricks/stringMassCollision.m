@@ -7,12 +7,12 @@ k = 1/fs;
 
 %% Drawing Functions
 drawThings = true;
-drawSpeed = 1;
+drawSpeed = 1000;
 lengthSound = 1 * fs;
 drawStart = 0;
 
 %% String Variables
-f0 = 110.00;    
+f0 = 440.00;    
 rho = 7850;
 r = 0.0005;
 A = r^2 * pi;
@@ -25,8 +25,8 @@ L = 1;              % String Length
 kappa = sqrt (E*I / (rho*A));   % Stiffness coefficient
 
 % Damping coefficients
-s0 = 2 * rho * A;
-s1 = 0.005;
+s0 = 0 * rho * A;
+s1 = 0.000;
 scaleFac = rho * A; % (scaling with mass/unit length)
 
 % Grid spacing
@@ -34,31 +34,31 @@ h = sqrt((c^2*k^2 + 4*s1*k + sqrt((c^2*k^2 + 4*s1*k)^2+16*kappa^2*k^2)) / 2);
 s1 = s1 * scaleFac;
 N = floor(1/h);
 h = 1/N;
-offset = 0.1;
+offset = 0.0;
 u1 = zeros(N, 1) + offset;
 u1Prev = zeros(N, 1) + offset;
 u1Next = zeros(N, 1) + offset;
 
 %% Mass Variables
-f1 = 500;            % fundamental frequency [Hz]
+f1 = 0;            % fundamental frequency [Hz]
 w1 = 2 * pi * f1;   % angular frequency
-M = 0.1;
+M = 0.001;
 u2 = -0.1;
-u2Prev = -0.1;
+u2Prev = -0.105;
 % u2Next = -0.1;
 
 %% Collision Variables
 alpha = 1.3;
-K = 5 * 10^6;
+K = 5 * 10^10;
 cL = floor (N / 6); % collision location
 
 %% Excitation (raised cosine)
-width = 20;
-loc = 1/2;
-startIdx = floor(floor(loc * N) - width / 2);
-endIdx = floor(floor(loc * N) + width / 2);
-u1(startIdx : endIdx) = u1(startIdx : endIdx) + (1 - cos(2 * pi * [0:width]' / width)) / 2;
-u1Prev = u1;
+% width = 20;
+% loc = 1/2;
+% startIdx = floor(floor(loc * N) - width / 2);
+% endIdx = floor(floor(loc * N) + width / 2);
+% u1(startIdx : endIdx) = u1(startIdx : endIdx) + (1 - cos(2 * pi * [0:width]' / width)) / 2;
+% u1Prev = u1;
 
 %% Initialise
 etaPrev = u2 - u1(cL);
@@ -150,10 +150,10 @@ for n = 2:lengthSound
          + s0 / k * u1Prev(vec)...
          + 2 * s1 / (k * h^2) * (u1(vec+1) - 2 * u1(vec) + u1(vec-1) - u1Prev(vec+1) + 2 * u1Prev(vec) - u1Prev(vec-1))...
          + J(vec) * (g^2/4 * (etaNext - etaPrev) + psiPrev * g)) / (rho * A / k^2 + s0/k);
-
+    u2NextSave(n) = u2Next;
 %     u2Next = (M / k^2 * (2 * u2 - u2Prev) - M * w1^2 * u2 - g^2 / 4 * (etaNext - etaPrev) - psiPrev * g) * k^2 / M;
     if drawThings
-        etaNext - (u2Next - u1Next(cL))
+%         etaNext - (u2Next - u1Next(cL))
 %         u2Next - solut(2)
     end
     %% Update Psi
@@ -186,24 +186,35 @@ for n = 2:lengthSound
     if mod(n,drawSpeed) == 0 && n >= drawStart && drawThings == true
         subplot(2,1,1);
         cla
-        plot(u1Next);
+        plot(u1Next, 'Linewidth', 2);
         hold on;
-        scatter(cL, u2Next);
-       
+        scatter(cL, u2Next, 400, '.');
+        legend(["String (u_1)", "Mass (u_2)"])
+        title("State of the system. K = 5\cdot10^{10}")
+%         ylim([-0.1 0.1])
+        grid on;
+        set(gca, 'Fontsize', 14)
         subplot(2,1,2);
-        cla
-        if s0 == 0 && s1 == 0
-             plot(totEnergy(10:n) / totEnergy(10) - 1);
-            title("Normalised total energy");
-        else
-%           plot(rOCTotEnergy(10:n));
-            plot(rOCTotEnergy(10:n));
-%             hold on;
-%             plot(rOCcolEnergy1(10:n));
-%             plot(rOCcolEnergy2(10:n));
-%             plot(rOCcolEnergy1(10:n) + rOCcolEnergy2(10:n));
-%             title("Rate of change total energy");
-        end
+        plot(u2NextSave(2:n), 'k', 'Linewidth', 1)
+        title("Trajectory of the mass")
+        ylabel("State u_2")
+        xlabel("Time n (in samples)")
+%         ylim([-0.1 0.1])
+        grid on;
+        set(gca, 'Fontsize', 14)
+        
+%         if s0 == 0 && s1 == 0
+%              plot(totEnergy(10:n) / totEnergy(10) - 1);
+%             title("Normalised total energy");
+%         else
+% %           plot(rOCTotEnergy(10:n));
+%             plot(rOCTotEnergy(10:n));
+% %             hold on;
+% %             plot(   rOCcolEnergy1(10:n));
+% %             plot(rOCcolEnergy2(10:n));
+% %             plot(rOCcolEnergy1(10:n) + rOCcolEnergy2(10:n));
+% %             title("Rate of change total energy");
+%         end
         drawnow
     end
 end
