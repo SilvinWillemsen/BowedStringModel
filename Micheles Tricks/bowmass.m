@@ -11,7 +11,7 @@ TF = 1; % simulation duration (s)
 drawThings = true;
 drawSpeed = 10;
 drawStart = 5000;%SR * TF / 2;
-viewWindow = drawSpeed * 10;
+viewWindow = drawSpeed * 100;
 drawFunc = 0;
 %%%%%% begin global parameters
 
@@ -80,8 +80,9 @@ for n=3:NF
     u(n) = 2*u(n-1) - u(n-2) - K * k^2 / M * u(n-1) - FB * k^2 / M * sqrt(2*sig) * q * exp(-sig*q^2 + 1/2);
     rOCkinEnergy(n) = M/(2*k^3) * (u(n)-u(n-2)) * (u(n)-2*u(n-1)+u(n-2));
     rOCpotEnergy(n) = (K * u(n-1)) * (u(n) - u(n-2)) / (2*k);
-    rOCbowEnergy(n) = FB * q * sqrt(2*sig) * q * exp(-sig*q^2 + 1/2)...
-        + FB * vB * sqrt(2*sig) * q * exp(-sig*q^2 + 1/2);
+%     rOCbowEnergy(n) = FB * (u(n) - u(n-2)) * sqrt(2*sig) * q * exp(-sig*q^2 + 1/2)...
+%         + FB * vB * sqrt(2*sig) * q * exp(-sig*q^2 + 1/2);
+    rOCbowEnergy(n) = FB * (u(n) - u(n-2)) / (2*k) * sqrt(2*sig) * q * exp(-sig*q^2 + 1/2);
     rOCtotEnergy(n) = rOCkinEnergy(n) + rOCpotEnergy(n) + rOCbowEnergy(n);
     
     if drawThings && n > viewWindow && drawFunc == 1 && mod(n,drawSpeed) == 0 && n > drawStart
@@ -110,9 +111,9 @@ for n=3:NF
         + BM / (2*k) * u2(n-2) + BM * vB) / (M / k^2 + BM / (2 * k));
     
     rOCkinEnergy2(n) = M/(2*k^3) * (u2(n)-u2(n-2)) * (u2(n)-2*u2(n-1)+u2(n-2));
-    rOCpotEnergy2(n) = (K * u2(n-1)) * (u2(n) - u2(n-2)) / (2*k);
-    rOCbowEnergy2(n) = q2 * BM / (2*k) * (u2(n) - u2(n-2));
-    rOCtotEnergy2(n) = rOCkinEnergy2(n) + rOCpotEnergy2(n) + rOCbowEnergy2(n);
+    rOCpotEnergy2(n) = -(K * u2(n-1)) * (u2(n) - u2(n-2)) / (2*k);
+    rOCbowEnergy2(n) = -FB * ((u2(n) - u2(n-2)) / (2*k) - vB) * sqrt(2 * sig) * exp(-sig * q2^2 + 1/2) *  (u2(n) - u2(n-2)) / (2*k);
+    rOCtotEnergy2(n) = rOCkinEnergy2(n) - rOCpotEnergy2(n) - rOCbowEnergy2(n);
 %     subplot(2,1,1)
 %     plot(u2(1:n))
 %     subplot(2,1,2)

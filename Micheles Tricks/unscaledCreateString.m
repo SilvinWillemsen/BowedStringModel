@@ -24,7 +24,8 @@ function [B, C, N, h, Dxx, Dxxxx, s0, s1] = unscaledCreateString(rho, A, T, E, I
 %     N = N - 2;
     B = (2 * rho * A / k^2 * eye(N) + T / h^2 * Dxx - E * I / h^4 * Dxxxx + 2 * s1 / (k * h^2) * Dxx) / (rho * A / k^2 + s0 / k);
     C = ((-rho * A / k^2 + s0 / k) * eye(N) - 2 * s1 / (k*h^2) * Dxx) / (rho * A / k^2 + s0/k);
-    %     C = -((1 - s0 * k) * eye(N) + 2 * s1 * k * Dxx(2:end-1,2:end-1) / h^2) / (1 + s0 * k);
+
+%     C = -((1 - s0 * k) * eye(N) + 2 * s1 * k * Dxx(2:end-1,2:end-1) / h^2) / (1 + s0 * k);
     
 %     N = N + 4;
     
