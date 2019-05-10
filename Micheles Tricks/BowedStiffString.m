@@ -2,7 +2,7 @@ clear all;
 close all;
 
 drawString = true;
-drawSpeed = 5;
+drawSpeed = 1;
 exc = "cos";
 fs = 44100;
 k = 1 / fs;     % Time step
@@ -20,8 +20,8 @@ c = f0 * 2;         % Wave-Speed
 T = c^2 * rho * A;  % Tension
 E = 2e11;
 In = r^4 * pi / 4;
-s0 = 0.0;
-s1 = 0.0;
+s0 = 2.0;
+s1 = 0.005;
 [B, C, N, h, Dxx, Dxxxx, s0, s1, bB, bC] = unscaledCreateStringNR (rho, A, T, E, In, L, s0, s1, k);
 
 kappa = sqrt(E * In / (rho * A));
@@ -125,8 +125,8 @@ for n = 1 : lengthSound
     %% simple backwards
 %     q = (u2(bp) - uPrev2(bp)) / k - Vb;
     
-    excitation = J * Fb * sqrt(2 * a) * q * exp(-a*q^2 + 1/2);
-    uNext = B * u - uPrev - excitation / (rho * A / k^2 + s0 / k);
+    excitation = J * Fb * sqrt(2 * a) * q * exp(-a*q^2 + 1/2)
+    uNext = B * u + C * uPrev - excitation / (rho * A / k^2 + s0 / k);
 
     eVec = 2:N-1;
     vec = 3:N-2;
@@ -145,12 +145,11 @@ for n = 1 : lengthSound
     rOCbowEnergy(n) = -Fb * (uNext(bp) - uPrev(bp)) / (2 * k) * sqrt(2*a) * q * exp(-a*q^2 + 1/2);
     rOCtotEnergy(n) = rOCkinEnergy(n) - rOCpotEnergy(n) - rOCdamp0StringEnergy(n) - rOCdamp1StringEnergy(n) - rOCbowEnergy(n);
     
-    
     q2 = 2 / k * (u2(bp) - u2Prev(bp)) - qPrev2 - 2 * Vb;
 
     Bm = Fb * (sqrt(2 * a) * exp(-a * q2^2 + 1/2));
-    u2Next = ((rho * A / k^2) * (B * u2 - u2Prev) + J * Bm .* (u2Prev / (2 * k) + Vb)) ./ (rho * A / k^2 + J * Bm / (2 * k));
-%     u2Next = ((rho * A / k^2) * (B * u2 - u2Prev)) ./ (rho * A / k^2);
+    u2Next = ((rho * A / k^2 + s0 / k) * (B * u2 + C * u2Prev) + J * Bm .* (u2Prev / (2 * k) + Vb)) ./ (rho * A / k^2 + s0 / k + J * Bm / (2 * k));
+    
     kinEnergy2(n) = rho * A * h / 2 * sum((1/k * (u2 - u2Prev)).^2);
     potEnergy2(n) = T / (2*h) * sum((u2(eVec + 1) - u2(eVec)) .* (u2Prev(eVec + 1) - u2Prev(eVec)))...
         + E * In / (2 * h^3) * sum((u2(eVec+1) - 2 * u2(eVec) + u2(eVec-1)) ...
@@ -160,8 +159,10 @@ for n = 1 : lengthSound
     rOCkinEnergy2(n) = rho * A * h / (2 * k^3) * sum((u2Next - 2 * u2 + u2Prev) .* (u2Next - u2Prev));
     rOCpotEnergy2(n) = T / (2 * k * h) * sum((u2(eVec+1) - 2 * u2(eVec) + u2(eVec-1)) .* (u2Next(eVec) - u2Prev(eVec)))...
         - h * E * In / (2 * k * h^4) * sum((u2(vec+2) - 4 * u2(vec+1) + 6 * u2(vec) - 4 * u2(vec-1) + u2(vec-2)) .* (u2Next(vec) - u2Prev(vec)));
+    rOCdamp0StringEnergy2(n) = -2 * s0 * h / (4 * k^2) * sum((u2Next - u2Prev).*(u2Next - u2Prev));
+    rOCdamp1StringEnergy2(n) = 2 * h * s1 / (2 * k^2 * h^2) * sum((u2(eVec+1) - 2 * u2(eVec) + u2(eVec-1) - u2Prev(eVec+1) + 2 * u2Prev(eVec) - u2Prev(eVec-1)) .* (u2Next(eVec) - u2Prev(eVec)));
     rOCbowEnergy2(n) = -Fb * sqrt(2*a) * ((u2Next(bp) - u2Prev(bp)) / (2 * k) - Vb) * exp(-a*q2^2 + 1/2) * (u2Next(bp) - u2Prev(bp)) / (2 * k) ;
-    rOCtotEnergy2(n) = rOCkinEnergy2(n) - rOCpotEnergy2(n) - rOCbowEnergy2(n);
+    rOCtotEnergy2(n) = rOCkinEnergy2(n) - rOCpotEnergy2(n) - rOCdamp0StringEnergy2(n) - rOCdamp1StringEnergy2(n) - rOCbowEnergy2(n);
     
     if mod(n,drawSpeed) == 0 && drawString == true %&& n > 10000
         subplot(3,2,1);
@@ -177,7 +178,7 @@ for n = 1 : lengthSound
         plot(energy2(10:n) / energy2(10) - 1);
         
         subplot(3,2,5);
-        plot(rOCtotEnergy(10:n))
+        plot(rOCtotEnergy(10:n))      
         
         subplot(3,2,6);
         plot(rOCtotEnergy2(10:n))
