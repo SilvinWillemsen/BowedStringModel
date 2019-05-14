@@ -5,9 +5,12 @@ close all;
 fs = 44100;
 k = 1/fs;
 
+%% Excitation (cos or bowed)
+exc = "cos";
+
 %% Drawing Functions
 drawThings = true;
-drawSpeed = 100;
+drawSpeed = 1;
 lengthSound = fs;
 drawStart = 0;
 damping = true;
@@ -49,14 +52,20 @@ courantNoS = c^2 * k^2 / hS^2 + 4 * kappaS^2 * k^2 / hS^4
 %% Bowing terms
 bP = floor(2/pi * NS);
 a = 100;
-Fb = 0.1;
+
+if strcmp(exc, "bowed")
+    Fb = 0.1;
+else
+    Fb = 0;
+end
+
 Vb = -0.1;
 qPrev = -Vb;
 
 %% Mass Variables
 f1 = 1;    % fundamental frequency [Hz] (< 1 / (k * pi) (< 14,037 Hz))
 w1 = 2 * pi * f1;   % angular frequency (< 2 / k (< 88,200 rad/s))
-M = 0.01;
+M = 0.001;
 
 if damping
     R = 0.1;
@@ -71,7 +80,7 @@ u2Next = u2;
 %% Plate Variables
 Lx = 0.2;
 Ly = 1.5;
-rhoP = 0.00001;
+rhoP = 1;
 EP = 2e5;
 H = 0.001;
 
@@ -103,11 +112,11 @@ courantNoP = kappaP * k / hP^2
 %% Collision Variables
 cL = floor (NS * bridgeLoc); % bridge location
 alpha = 1.3;
-K = 0 * 10^6;
+K = 5 * 10^6;
 
 %% Non-linear Spring Variables
-K1 = 100000;
-K3 = 1000;
+K1 = 1000000;
+K3 = 100;
 etaSpring = u1(cL) - u2;
 etaSpringPrev = u1(cL) - u2;
 
@@ -117,13 +126,15 @@ etaSpringPrev = u1(cL) - u2;
 % u1Prev = u1;
 
 %% Excitation
-% amp = 100*offset;
-% width = 10;
-% loc = 1/4;
-% startIdx = floor(floor(loc * NS) - width / 2);
-% endIdx = floor(floor(loc * NS) + width / 2);
-% u1(startIdx : endIdx) = u1(startIdx : endIdx) - amp * (1 - cos(2 * pi * [0:width]' / width)) / 2;
-% u1Prev = u1;
+amp = 100*offset;
+if strcmp(exc, "cos")
+    width = 10;
+    loc = 1/4;
+    startIdx = floor(floor(loc * NS) - width / 2);
+    endIdx = floor(floor(loc * NS) + width / 2);
+    u1(startIdx : endIdx) = u1(startIdx : endIdx) - amp * (1 - cos(2 * pi * [0:width]' / width)) / 2;
+end
+u1Prev = u1;
 
 %% Initialise
 etaPrev = u3(brP) - u2;
@@ -198,7 +209,7 @@ for n = 2:lengthSound
     %% Update FDSs without connection-force and collision terms 
     strVec = 3:NS-2;
     u1Next(strVec) = BS(strVec, :) * u1 + CS(strVec, :) * u1Prev;
-    u2Next = (M / k^2 * (2 * u2 - u2Prev) - M * w1^2 * (u2 - offset) + R / (2*k) * u2Prev) / (M / k^2 + R / (2*k));
+    u2Next = (M / k^2 * (2 * u2 - u2Prev) - M * w1^2 * (u2 - offset) + R / (2*k) * u2Prev);
     u3Next = BP * u3 + CP * u3Prev;
     
     q = 2 / k * (u1(bP) - u1Prev(bP)) - qPrev - 2 * Vb;
@@ -214,7 +225,7 @@ for n = 2:lengthSound
     else
 %         Falpha = (u1Next(cL) - u2Next + K1 * etaSpring / (2 * varPhi) + etaSpringPrev) / varPsi;
         FalphaTick = (K1 * etaSpring / (2 * varPhi) + etaSpringPrev + u1Next(cL) ...
-            - ((M / k^2 + R / (2*k)) * u2Next - g^2/4 * etaPrev + psiPrev * g) / (M / k^2 + g^2 / 4 + R / (2*k))) / varPsi;
+            - (u2Next - g^2/4 * etaPrev + psiPrev * g) / (M / k^2 + g^2 / 4 + R / (2*k))) / varPsi;
     end
     
     

@@ -1,9 +1,9 @@
 clear all;
 close all;
 
-drawString = true;
+drawString = false;
 drawSpeed = 1;
-exc = "cos";
+exc = "bowed";
 fs = 44100;
 k = 1 / fs;     % Time step
 
@@ -125,7 +125,7 @@ for n = 1 : lengthSound
     %% simple backwards
 %     q = (u2(bp) - uPrev2(bp)) / k - Vb;
     
-    excitation = J * Fb * sqrt(2 * a) * q * exp(-a*q^2 + 1/2)
+    excitation = J * Fb * sqrt(2 * a) * q * exp(-a*q^2 + 1/2);
     uNext = B * u + C * uPrev - excitation / (rho * A / k^2 + s0 / k);
 
     eVec = 2:N-1;
