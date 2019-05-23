@@ -10,10 +10,10 @@ exc = "cos";
 
 %% Drawing Functions
 drawThings = true;
-drawSpeed = 1;
+drawSpeed = 100;
 lengthSound = fs;
 drawStart = 0;
-damping = true;
+damping = false;
 
 %% Bridge offset and location
 offset = 1e-5;
@@ -80,8 +80,8 @@ u2Next = u2;
 %% Plate Variables
 Lx = 0.2;
 Ly = 1.5;
-rhoP = 1;
-EP = 2e5;
+rhoP = 7850;
+EP = 2e11;
 H = 0.001;
 
 if damping
@@ -112,11 +112,16 @@ courantNoP = kappaP * k / hP^2
 %% Collision Variables
 cL = floor (NS * bridgeLoc); % bridge location
 alpha = 1.3;
-K = 5 * 10^6;
+K = 6 * 10^6;
 
 %% Non-linear Spring Variables
-K1 = 1000000;
+K1 = 100000;
 K3 = 100;
+if damping
+    sx = 10;
+else
+    sx = 0;
+end
 etaSpring = u1(cL) - u2;
 etaSpringPrev = u1(cL) - u2;
 
@@ -177,6 +182,7 @@ rOCcolEnergy2 = zeros(lengthSound, 1);
 rOCenergy3 = zeros(lengthSound, 1);
 
 rOCconnEnergy = zeros(lengthSound, 1);
+rOCconnDampEnergy = zeros(lengthSound, 1);
 rOCTotEnergy = zeros(lengthSound, 1);
 
 vec = 3:NS-2;
@@ -209,31 +215,44 @@ for n = 2:lengthSound
     %% Update FDSs without connection-force and collision terms 
     strVec = 3:NS-2;
     u1Next(strVec) = BS(strVec, :) * u1 + CS(strVec, :) * u1Prev;
-    u2Next = (M / k^2 * (2 * u2 - u2Prev) - M * w1^2 * (u2 - offset) + R / (2*k) * u2Prev);
+    u2Next = (M / k^2 * (2 * u2 - u2Prev) - M * w1^2 * (u2 - offset) + R / (2*k) * u2Prev) / (M / k^2 + R / (2*k));
     u3Next = BP * u3 + CP * u3Prev;
     
     q = 2 / k * (u1(bP) - u1Prev(bP)) - qPrev - 2 * Vb;
     BM = Fb * sqrt(2*a)*exp(-a*q^2+1/2);
     
     %% Calculate connection forces
-    varPhi = K1 / 4 + K3 * etaSpring^2 / 2;
+    phiMinus = K1 / 4 + K3 * etaSpring^2 / 2 - sx / k;
+    phiPlus = K1 / 4 + K3 * etaSpring^2 / 2 + sx / k;
+    phiMinTest = k * (K1 + 2 * K3 * etaSpring^2) - 4 * sx;
+    phiPlusTest = k * (K1 + 2 * K3 * etaSpring^2) + 4 * sx;
     varPsi = 1 / (hS * ((rhoS * A) / k^2 + s0S / k + Jbow(cL) * BM / (2*k)))...
-        + (1/(M / k^2 + R / (2*k) + g^2/4)) + 1 / varPhi;
-    if varPhi == 0
+        + (1/(M / k^2 + R / (2*k) + g^2/4)) + 1 / phiPlus;
+    varPsiTest = ((4 * k * hS * rhoS * A + k^2 * phiPlusTest) * (4 * M + g^2 * k^2) + (4 * k^2 * hS * rhoS * A * phiPlusTest)) ... 
+        / (hS * rhoS * A * phiPlusTest * (4 * M + g^2 * k^2));
+    if phiPlus == 0
 %         Falpha = 0;
         FalphaTick = 0;
     else
-%         Falpha = (u1Next(cL) - u2Next + K1 * etaSpring / (2 * varPhi) + etaSpringPrev) / varPsi;
-        FalphaTick = (K1 * etaSpring / (2 * varPhi) + etaSpringPrev + u1Next(cL) ...
-            - (u2Next - g^2/4 * etaPrev + psiPrev * g) / (M / k^2 + g^2 / 4 + R / (2*k))) / varPsi;
+        % Working
+%         FalphaTick = (K1 * etaSpring / (2 * phiPlus) + (phiMinus / phiPlus) * etaSpringPrev + u1Next(cL) ...
+%             - (u2Next * (M / k^2 + R / (2*k)) - g^2/4 * etaPrev + psiPrev * g) / (M / k^2 + g^2 / 4 + R / (2*k))) / varPsi;
+%          FalphaTick = ((4 * M + 2 * R * K + g^2 * k^2) * (K1 * etaSpring + 2 * phiMinus * etaSpringPrev + 2 * phiPlus * u1Next(cL)) ...
+%                     - 2 * phiPlus * (u2Next * (4 * M + 2 * R * k) - g^2 * k^2 * etaPrev + 4 * k^2 * psiPrev * g)) / (2 * phiPlus * varPsi * (4 * M + k^2 * g^2 + 2 * k * R));
+        FalphaTick = (hS * rhoS * A * phiPlusTest * (4 * M + g^2 * k^2)) ...
+            * ((4 * M + 2 * R * K + g^2 * k^2) * (2 * k * K1 * etaSpring + phiMinTest * etaSpringPrev + phiPlusTest * u1Next(cL)) ...
+            - phiPlusTest * ((4 * M + 2 * R * k) * u2Next - g^2 * k^2 * etaPrev + 4 * k^2 * psiPrev * g))...
+            / (phiPlusTest * ((4 * k * hS * rhoS * A + k^2 * phiPlusTest) * (4 * M + g^2 * k^2) + (4 * k^2 * hS * rhoS * A * phiPlusTest)) * (4 * M + 2 * R * k + k^2 * g^2));
     end
     
     
-    plateTerm = (g^2/4)/(varPsi * (M / k^2 + g^2 / 4 + R / (2*k)));
+%     plateTerm = (g^2/4)/(varPsi * (M / k^2 + g^2 / 4 + R / (2*k)));
+    plateTerm = g^2 * k^2 / (varPsiTest * (4 * M + k^2 * g^2 + 2 * k * R));
+%     plateTerm = g^2 * k^2 / (varPsi * (4 * M + 2 * k * R + g^2 * k^2));
     Adiv = [rhoS * A / k^2 + s0S / k ...
-             + Jbow(cL) * BM / (2*k),         0,                        -plateTerm;...
+             + Jbow(cL) * BM / (2*k),                 0,                            -plateTerm / hS;...
                      0,               M / k^2 + g^2 / 4 + R / (2*k),            plateTerm - g^2 / 4; ...
-                     0,               -g^2 / (4 * hP^2),   rhoP * H / k^2 + s0P / k + g^2 / (4*hP^2)];
+                     0,                       -g^2 / (4 * hP^2),      rhoP * H / k^2 + s0P / k + g^2 / (4*hP^2)];
     
     v = [... Spring
          rhoS * A / k^2 * (2 * u1(cL) - u1Prev(cL)) + T / hS^2 * (u1(cL+1) - 2 * u1(cL) + u1(cL-1)) ...
@@ -259,7 +278,7 @@ for n = 2:lengthSound
     
     if drawThings && drawStart == 0
 %         disp("Difference between etaNext and u3Next(brP) - u2Next (should be 0)")
-        etaNext - (u3Next(brP) - u2Next)
+%         etaNext - (u3Next(brP) - u2Next)
     elseif mod(n,floor(lengthSound / 100)) == 0
         prog = prog + 1;
         disp("Progress: " + prog + "%")
@@ -330,9 +349,10 @@ for n = 2:lengthSound
     rOCconnEnergy(n) = (K1 / 4 * (etaSpringNext + 2 * etaSpring + etaSpringPrev) ...
         + K3 / 2 * etaSpring^2 * (etaSpringNext + etaSpringPrev))...
         * 1/(2*k) * (etaSpringNext - etaSpringPrev);
+    rOCconnDampEnergy(n) = 2 * sx / (4 * k^2) * (etaSpringNext - etaSpringPrev)^2;
     
     %Total Energy
-    rOCTotEnergy(n) = rOCenergy1(n) + rOCenergy2(n) + rOCenergy3(n) + rOCconnEnergy(n) - rOCcolEnergy1(n) - rOCcolEnergy2(n); %including damping so should be 0
+    rOCTotEnergy(n) = rOCenergy1(n) + rOCenergy2(n) + rOCenergy3(n) + rOCconnEnergy(n) + rOCconnDampEnergy(n) - rOCcolEnergy1(n) - rOCcolEnergy2(n); %including damping so should be 0
     
     %% Update states
     psiPrev = psi; 

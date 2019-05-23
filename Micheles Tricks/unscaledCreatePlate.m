@@ -7,10 +7,10 @@ function [B, C, N, Nx, Ny, h, kappa, D, Dkappa, DD, s0, s1] = unscaledCreatePlat
 %     hTest = 2*sqrt(k*(s1^2+sqrt(kappa^2+s1^2))); %<- old stability
     h = 2 * sqrt(k * (s1 + sqrt(kappa^2 + s1^2)));
     
-%     if h < 0.02
-%         h
-%         h = 0.02;
-%     end
+    if h < 0.02
+        h
+        h = 0.02;
+    end
     s0 = s0 * rho * H;
     s1 = s1 * rho * H;
     Nx = floor(Lx/h);
