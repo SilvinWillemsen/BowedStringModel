@@ -9,16 +9,17 @@ clc;
 SR = 44100; % sample rate (Hz)
 TF = 1; % simulation duration (s)
 drawThings = true;
-drawSpeed = 10;
-drawStart = 5000;%SR * TF / 2;
+drawSpeed = 100;
+drawStart = 0;%SR * TF / 2;
 viewWindow = drawSpeed * 100;
 drawFunc = 0;
 %%%%%% begin global parameters
 
 K = 1000;
 M = 0.001;
+R = 5;
 w0 = sqrt(K/M);
-FBInit = 0.5; % bow force
+FBInit = 5; % bow force
 vBInit = 0.1; % bow velocity (m/s)
 sig = 100; % friction law free parameter (1/m^2) 
 tol = 1e-4; % tolerance for Newton-Raphson method
@@ -44,7 +45,7 @@ qlast2 = 0;
 %     error("Time step too large");
 % end
 %%%%%% start main loop
-ramp = 5000;
+ramp = 0;
 
 if ramp == 0
     q2Prev = -vBInit;
@@ -63,12 +64,13 @@ for n=3:NF
         FB = FBInit;
     end
     % Newton-Raphson method to determine relative velocity
-    b = -(2 * M/k^2) * (u(n-1)-u(n-2)) + (2 * M / k) * vB + K * u(n-1);
+%     b = -(2 * M/k^2) * (u(n-1)-u(n-2)) + (2 * M / k) * vB + K * u(n-1);
+    b = 2 * M / k * (vB - 1/k * (u(n-1) - u(n-2))) + K * u(n-1) + R * vB;
     eps = 1;
     i = 0;
     while eps>tol
-        q=qlast-(FB*A*qlast*exp(-sig*qlast^2) + 2*M/k * qlast+b)/...
-         (FB*A*(1-2*sig*qlast^2)*exp(-sig*qlast^2)+2*M/k);
+        q=qlast-(FB*A*qlast*exp(-sig*qlast^2) + (2*M/k + R) * qlast+b)/...
+         (FB*A*(1-2*sig*qlast^2)*exp(-sig*qlast^2)+2*M/k+R);
         eps = abs(q-qlast);
         qlast = q;
         i = i + 1;
@@ -77,13 +79,15 @@ for n=3:NF
         end
     end
     qSave(n) = q;
-    u(n) = 2*u(n-1) - u(n-2) - K * k^2 / M * u(n-1) - FB * k^2 / M * sqrt(2*sig) * q * exp(-sig*q^2 + 1/2);
+    u(n) = (M / k^2 * (2*u(n-1) - u(n-2)) - K * u(n-1) + R / (2*k) * u(n-2) - FB * sqrt(2*sig) * q * exp(-sig*q^2 + 1/2)) / (M / k^2 + R / (2*k));
+    
+    shouldBe0(n) = q - ((u(n) - u(n-2)) / (2*k) - vB);
+    
     rOCkinEnergy(n) = M/(2*k^3) * (u(n)-u(n-2)) * (u(n)-2*u(n-1)+u(n-2));
     rOCpotEnergy(n) = (K * u(n-1)) * (u(n) - u(n-2)) / (2*k);
-%     rOCbowEnergy(n) = FB * (u(n) - u(n-2)) * sqrt(2*sig) * q * exp(-sig*q^2 + 1/2)...
-%         + FB * vB * sqrt(2*sig) * q * exp(-sig*q^2 + 1/2);
+    rOCdampEnergy(n) = R / (4*k^2) * (u(n) - u(n-2))^2;
     rOCbowEnergy(n) = FB * (u(n) - u(n-2)) / (2*k) * sqrt(2*sig) * q * exp(-sig*q^2 + 1/2);
-    rOCtotEnergy(n) = rOCkinEnergy(n) + rOCpotEnergy(n) + rOCbowEnergy(n);
+    rOCtotEnergy(n) = rOCkinEnergy(n) + rOCpotEnergy(n) + rOCbowEnergy(n) + rOCdampEnergy(n);
     
     if drawThings && n > viewWindow && drawFunc == 1 && mod(n,drawSpeed) == 0 && n > drawStart
         subplot(3,1,1)
@@ -101,19 +105,19 @@ for n=3:NF
     end
     
     q2 = 2 / k * (u2(n-1) - u2(n-2)) - q2Prev - 2 * vB;
-%     q3 = 2 / k * (u3(n-1) - u3(n-2)) - q3Prev - 2 * vB;
-%     q3 = (u3(n-1) - u3(n-2)) / k - vB;
-%     q3Save(n) = q3;
+
     % update position of mass and relative bow velocity
     
     BM = FB * sqrt(2*sig) * exp(-sig * q2^2+1/2);
-    u2(n) = (M / k^2 * (2 * u2(n-1) - u2(n-2)) - K * u2(n-1) ...
-        + BM / (2*k) * u2(n-2) + BM * vB) / (M / k^2 + BM / (2 * k));
+    u2(n) = (M / k^2 * (2 * u2(n-1) - u2(n-2)) - K * u2(n-1) + R / (2*k) * u2(n-2) ...
+        + BM / (2*k) * u2(n-2) + BM * vB) / (M / k^2 + R / (2*k) + BM / (2 * k));
+    shouldBe0_2(n) = q2 - ((u2(n) - u2(n-2)) / (2*k) - vB);
     
     rOCkinEnergy2(n) = M/(2*k^3) * (u2(n)-u2(n-2)) * (u2(n)-2*u2(n-1)+u2(n-2));
     rOCpotEnergy2(n) = -(K * u2(n-1)) * (u2(n) - u2(n-2)) / (2*k);
+    rOCdampEnergy2(n) = - R / (4*k^2) * (u2(n) - u2(n-2))^2;
     rOCbowEnergy2(n) = -FB * ((u2(n) - u2(n-2)) / (2*k) - vB) * sqrt(2 * sig) * exp(-sig * q2^2 + 1/2) *  (u2(n) - u2(n-2)) / (2*k);
-    rOCtotEnergy2(n) = rOCkinEnergy2(n) - rOCpotEnergy2(n) - rOCbowEnergy2(n);
+    rOCtotEnergy2(n) = rOCkinEnergy2(n) - rOCpotEnergy2(n) - rOCbowEnergy2(n) - rOCdampEnergy2(n);
 %     subplot(2,1,1)
 %     plot(u2(1:n))
 %     subplot(2,1,2)
@@ -134,26 +138,36 @@ for n=3:NF
     end
 %     
     if drawThings && n > viewWindow && drawFunc == 0 && mod(n,drawSpeed) == 0 && n > drawStart
-        subplot(3,2,1)
+        subplot(4,2,1)
         plot(u(1:n));
-        subplot(3,2,2)
+        title("State u_1")
+        subplot(4,2,2)
         plot(u2(1:n));
-        subplot(3,2,3)
+        title("State u_2")
+        subplot(4,2,3)
         plot(rOCkinEnergy(n-viewWindow:n));
         hold on;
         plot(rOCpotEnergy(n-viewWindow:n));
         plot(rOCbowEnergy(n-viewWindow:n));
         hold off;
-        subplot(3,2,4)
+        title("Energy")
+        subplot(4,2,4)
         plot(rOCkinEnergy2(n-viewWindow:n));
         hold on;
         plot(rOCpotEnergy2(n-viewWindow:n));
         plot(rOCbowEnergy2(n-viewWindow:n));
         hold off;
-        subplot(3,2,5)
+        title("Energy")
+        subplot(4,2,5)
         plot(rOCtotEnergy(n-viewWindow:n));
-        subplot(3,2,6)
+        title("Rate-of-change Energy")
+        subplot(4,2,6)
         plot(rOCtotEnergy2(n-viewWindow:n));
+        title("Rate-of-change Energy")
+        subplot(4,2,7)
+        plot(shouldBe0)
+        subplot(4,2,8)
+        plot(shouldBe0_2)
         drawnow;
     end
 %     testFunc2 = k^2 * FB * sqrt(2*sig) * q3 * exp(-sig * q3^2+1/2);

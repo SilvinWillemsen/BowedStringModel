@@ -6,21 +6,22 @@ fs = 44100;
 k = 1/fs;
 
 %% Excitation (cos or bowed)
-exc = "cos";
+exc = "bowed";
 
 %% Drawing Functions
-drawThings = true;
-drawSpeed = 100;
+drawThings = false;
+drawSpeed = 10000;
 lengthSound = fs;
 drawStart = 0;
-damping = false;
+damping = true;
+dampTest = false;
 
 %% Bridge offset and location
 offset = 1e-5;
 bridgeLoc = 1 / 8;
 
 %% String Variables
-f0 = 100;    
+f0 = 200;    
 rhoS = 7850;
 r = 0.0005;
 A = r^2 * pi;
@@ -50,20 +51,20 @@ u1Next = zeros(NS, 1) + offset;
 courantNoS = c^2 * k^2 / hS^2 + 4 * kappaS^2 * k^2 / hS^4
 
 %% Bowing terms
-bP = floor(2/pi * NS);
+bP = floor (2/pi * NS);
 a = 100;
 
 if strcmp(exc, "bowed")
-    Fb = 0.1;
+    Fb = 1;
 else
     Fb = 0;
 end
 
-Vb = -0.1;
+Vb = 0.2;
 qPrev = -Vb;
 
 %% Mass Variables
-f1 = 1;    % fundamental frequency [Hz] (< 1 / (k * pi) (< 14,037 Hz))
+f1 = 1000;    % fundamental frequency [Hz] (< 1 / (k * pi) (< 14,037 Hz))
 w1 = 2 * pi * f1;   % angular frequency (< 2 / k (< 88,200 rad/s))
 M = 0.001;
 
@@ -112,13 +113,17 @@ courantNoP = kappaP * k / hP^2
 %% Collision Variables
 cL = floor (NS * bridgeLoc); % bridge location
 alpha = 1.3;
-K = 6 * 10^6;
+K = 5 * 10^8;
 
 %% Non-linear Spring Variables
-K1 = 100000;
-K3 = 100;
+K1 = 0;
+K3 = 0;
 if damping
-    sx = 10;
+    if K1 == 0 && K3 == 0
+        sx = 0;
+    else
+        sx = 2;
+    end
 else
     sx = 0;
 end
@@ -131,7 +136,7 @@ etaSpringPrev = u1(cL) - u2;
 % u1Prev = u1;
 
 %% Excitation
-amp = 100*offset;
+amp = 1000*offset;
 if strcmp(exc, "cos")
     width = 10;
     loc = 1/4;
@@ -212,6 +217,7 @@ for n = 2:lengthSound
         g = sqrt(K * (alpha+1) / 2) * subplus(eta)^((alpha - 1)/2);
     end
     gSave(n) = g;
+    
     %% Update FDSs without connection-force and collision terms 
     strVec = 3:NS-2;
     u1Next(strVec) = BS(strVec, :) * u1 + CS(strVec, :) * u1Prev;
@@ -220,41 +226,38 @@ for n = 2:lengthSound
     
     q = 2 / k * (u1(bP) - u1Prev(bP)) - qPrev - 2 * Vb;
     BM = Fb * sqrt(2*a)*exp(-a*q^2+1/2);
+%     u1Next(strVec) = ((rhoS * A / k^2 + s0S / k) * (BS(strVec, :) * u1 + CS(strVec, :) * u1Prev)) ./ (rhoS * A / k^2 + s0S / k);
     
-    %% Calculate connection forces
+%     %% Calculate connection forces
     phiMinus = K1 / 4 + K3 * etaSpring^2 / 2 - sx / k;
     phiPlus = K1 / 4 + K3 * etaSpring^2 / 2 + sx / k;
     phiMinTest = k * (K1 + 2 * K3 * etaSpring^2) - 4 * sx;
     phiPlusTest = k * (K1 + 2 * K3 * etaSpring^2) + 4 * sx;
     varPsi = 1 / (hS * ((rhoS * A) / k^2 + s0S / k + Jbow(cL) * BM / (2*k)))...
         + (1/(M / k^2 + R / (2*k) + g^2/4)) + 1 / phiPlus;
-    varPsiTest = ((4 * k * hS * rhoS * A + k^2 * phiPlusTest) * (4 * M + g^2 * k^2) + (4 * k^2 * hS * rhoS * A * phiPlusTest)) ... 
-        / (hS * rhoS * A * phiPlusTest * (4 * M + g^2 * k^2));
+%     varPsiTest = ((4 * k * hS * rhoS * A + k^2 * phiPlusTest) * (4 * M + g^2 * k^2) + (4 * k^2 * hS * rhoS * A * phiPlusTest)) ... 
+%         / (hS * rhoS * A * phiPlusTest * (4 * M + g^2 * k^2));
+    varPsiTest = phiPlusTest * k^2 * (4 * M + 2 * R * k + g^2 * k^2 + 4 * hS * (rhoS * A + s0S * k)) + 4 * k * (hS * (rhoS * A + s0S * k)) * (4 * M + 2 * R * k + g^2 * k^2);
     if phiPlus == 0
 %         Falpha = 0;
         FalphaTick = 0;
     else
-        % Working
-%         FalphaTick = (K1 * etaSpring / (2 * phiPlus) + (phiMinus / phiPlus) * etaSpringPrev + u1Next(cL) ...
-%             - (u2Next * (M / k^2 + R / (2*k)) - g^2/4 * etaPrev + psiPrev * g) / (M / k^2 + g^2 / 4 + R / (2*k))) / varPsi;
-%          FalphaTick = ((4 * M + 2 * R * K + g^2 * k^2) * (K1 * etaSpring + 2 * phiMinus * etaSpringPrev + 2 * phiPlus * u1Next(cL)) ...
-%                     - 2 * phiPlus * (u2Next * (4 * M + 2 * R * k) - g^2 * k^2 * etaPrev + 4 * k^2 * psiPrev * g)) / (2 * phiPlus * varPsi * (4 * M + k^2 * g^2 + 2 * k * R));
-        FalphaTick = (hS * rhoS * A * phiPlusTest * (4 * M + g^2 * k^2)) ...
-            * ((4 * M + 2 * R * K + g^2 * k^2) * (2 * k * K1 * etaSpring + phiMinTest * etaSpringPrev + phiPlusTest * u1Next(cL)) ...
-            - phiPlusTest * ((4 * M + 2 * R * k) * u2Next - g^2 * k^2 * etaPrev + 4 * k^2 * psiPrev * g))...
-            / (phiPlusTest * ((4 * k * hS * rhoS * A + k^2 * phiPlusTest) * (4 * M + g^2 * k^2) + (4 * k^2 * hS * rhoS * A * phiPlusTest)) * (4 * M + 2 * R * k + k^2 * g^2));
+        % One division
+        FalphaTick = (phiPlusTest * hS * (rhoS * A + s0S * k) * (4 * M + 2 * R * k + g^2 * k^2)...
+            * ((4 * M + 2 * R * k + g^2 * k^2) * (2 * k * K1 * etaSpring + phiMinTest * etaSpringPrev + phiPlusTest * u1Next(cL)) ...
+            - phiPlusTest * ((4 * M + 2 * R * k) * u2Next - g^2 * k^2 * etaPrev + 4 * k^2 * psiPrev * g)))...
+            / (varPsiTest * phiPlusTest * (4 * M + 2 * R * k + g^2 * k^2));
     end
     
+    plateTerm = (phiPlusTest * hS * (rhoS * A + s0S * k) * (4 * M + 2 * R * k + g^2 * k^2) * g^2 * k^2)...
+        / (varPsiTest * (4 * M + 2 * R * k + g^2 * k^2));
     
-%     plateTerm = (g^2/4)/(varPsi * (M / k^2 + g^2 / 4 + R / (2*k)));
-    plateTerm = g^2 * k^2 / (varPsiTest * (4 * M + k^2 * g^2 + 2 * k * R));
-%     plateTerm = g^2 * k^2 / (varPsi * (4 * M + 2 * k * R + g^2 * k^2));
     Adiv = [rhoS * A / k^2 + s0S / k ...
              + Jbow(cL) * BM / (2*k),                 0,                            -plateTerm / hS;...
                      0,               M / k^2 + g^2 / 4 + R / (2*k),            plateTerm - g^2 / 4; ...
                      0,                       -g^2 / (4 * hP^2),      rhoP * H / k^2 + s0P / k + g^2 / (4*hP^2)];
     
-    v = [... Spring
+    v = [... String
          rhoS * A / k^2 * (2 * u1(cL) - u1Prev(cL)) + T / hS^2 * (u1(cL+1) - 2 * u1(cL) + u1(cL-1)) ...
          - ES * I / hS^4 * (u1(cL+2) - 4 * u1(cL+1) + 6 * u1(cL) - 4 * u1(cL-1) + u1(cL-2)) - FalphaTick / hS...
          + s0S / k * u1Prev(cL)...
@@ -272,9 +275,10 @@ for n = 2:lengthSound
     u2Next = solut(2);
     Falpha = FalphaTick - plateTerm * solut(3);
     etaNext = solut(3) - u2Next;
+%     Falpha = 0;
     u1Next = (((rhoS * A) / k^2 + s0S / k) * u1Next - (Jbr * Falpha)...
         + (Jbow * BM .* (u1Prev / (2*k) + Vb))) ./ ((rhoS * A) / k^2 + s0S / k + Jbow * BM / (2*k));
-    u3Next = u3Next - JbrP * (g^2 / 4 * (etaNext - etaPrev) + psiPrev * g) / ((rhoP * H) / k^2 + s0P / k);
+%     u3Next = u3Next - JbrP * (g^2 / 4 * (etaNext - etaPrev) + psiPrev * g) / ((rhoP * H) / k^2 + s0P / k);
     
     if drawThings && drawStart == 0
 %         disp("Difference between etaNext and u3Next(brP) - u2Next (should be 0)")
@@ -408,7 +412,7 @@ for n = 2:lengthSound
 % %         plot(rOCenergy2(10:n))
 %         plot(rOCconnEnergy(10:n))
         subplot(4,1,3);
-        if s0S == 0 && s1S == 0 && s0P == 0 && s1P == 0
+        if s0S == 0 && s1S == 0 && s0P == 0 && s1P == 0 && sx == 0
             % Draw Normalised energy
             plot(totEnergy(10:n) / totEnergy(10) - 1);
 %             plot(energy3(10:n) / energy3(10) - 1);

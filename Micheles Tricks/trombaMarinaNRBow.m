@@ -10,11 +10,12 @@ exc = "bowed";
 
 %% Drawing Functions
 drawThings = false;
-drawSpeed = 10000;
+drawSpeed = 100;
 lengthSound = fs;
 drawStart = 0;
 damping = true;
 dampTest = false;
+onlyString = false;
 
 %% Bridge offset and location
 offset = 1e-5;
@@ -42,7 +43,7 @@ else
     s1S = 0;
 end
 
-[BS, CS, NS, hS, Dxx, Dxxxx, s0S, s1S] = unscaledCreateString (rhoS, A, T, ES, I, L, s0S, s1S, k);
+[BS, CS, NS, hS, Dxx, Dxxxx, s0S, s1S, bB, bC] = unscaledCreateStringNR (rhoS, A, T, ES, I, L, s0S, s1S, k);
 
 u1 = zeros(NS, 1) + offset;
 u1Prev = zeros(NS, 1) + offset;
@@ -53,6 +54,7 @@ courantNoS = c^2 * k^2 / hS^2 + 4 * kappaS^2 * k^2 / hS^4
 %% Bowing terms
 bP = floor (2/pi * NS);
 a = 100;
+BM = sqrt(2 * a) * exp(1/2);
 
 if strcmp(exc, "bowed")
     Fb = 1;
@@ -62,6 +64,7 @@ end
 
 Vb = 0.2;
 qPrev = -Vb;
+tol = 1e-4;
 
 %% Mass Variables
 f1 = 1000;    % fundamental frequency [Hz] (< 1 / (k * pi) (< 14,037 Hz))
@@ -113,20 +116,23 @@ courantNoP = kappaP * k / hP^2
 %% Collision Variables
 cL = floor (NS * bridgeLoc); % bridge location
 alpha = 1.3;
-K = 5 * 10^8;
+K = 5 * 10^6;
 
 %% Non-linear Spring Variables
-K1 = 0;
-K3 = 0;
-if damping
-    if K1 == 0 && K3 == 0
-        sx = 0;
+if ~onlyString
+    K1 = 1000000;
+    K3 = 100;
+    if damping
+        sx = 1;
     else
-        sx = 2;
+        sx = 0;
     end
 else
+    K1 = 0;
+    K3 = 0;
     sx = 0;
 end
+
 etaSpring = u1(cL) - u2;
 etaSpringPrev = u1(cL) - u2;
 
@@ -136,7 +142,7 @@ etaSpringPrev = u1(cL) - u2;
 % u1Prev = u1;
 
 %% Excitation
-amp = 1000*offset;
+amp = 100 * offset;
 if strcmp(exc, "cos")
     width = 10;
     loc = 1/4;
@@ -200,8 +206,9 @@ JbrP(brP) = 1 / hP^2;
 IbrP = zeros(NP, 1);
 IbrP(brP) = 1;
 
-Jbow = zeros(NS,1);
-Jbow(bP) = 1/hS;
+Ibow = zeros(NS,1);
+Ibow(bP) = 1;
+Jbow = Ibow / hS;
 
 outputPos = floor(NS / 6);
 prog = 0;
@@ -224,8 +231,21 @@ for n = 2:lengthSound
     u2Next = (M / k^2 * (2 * u2 - u2Prev) - M * w1^2 * (u2 - offset) + R / (2*k) * u2Prev) / (M / k^2 + R / (2*k));
     u3Next = BP * u3 + CP * u3Prev;
     
-    q = 2 / k * (u1(bP) - u1Prev(bP)) - qPrev - 2 * Vb;
-    BM = Fb * sqrt(2*a)*exp(-a*q^2+1/2);
+    b = 2/k * Vb + 2 * s0S * Vb + Ibow' * bB * u1 + Ibow' * bC * u1Prev;
+    eps = 1;
+    i = 0;
+  
+    while eps>tol && i < 100
+        q=qPrev-(1/(rhoS * A * hS) * Fb*BM*qPrev*exp(-a*qPrev^2)+2*qPrev/k+2*s0S*qPrev+b)/...
+         (1/(rhoS * A * hS)*Fb*BM*(1-2*a*qPrev^2)*exp(-a*qPrev^2)+2/k+2*s0S);
+        eps = abs(q-qPrev);
+        qPrev = q;
+        i = i + 1;
+    end
+%     iSave(n) = i;
+%     qSave(n) = q;
+    
+    
 %     u1Next(strVec) = ((rhoS * A / k^2 + s0S / k) * (BS(strVec, :) * u1 + CS(strVec, :) * u1Prev)) ./ (rhoS * A / k^2 + s0S / k);
     
 %     %% Calculate connection forces
@@ -233,7 +253,7 @@ for n = 2:lengthSound
     phiPlus = K1 / 4 + K3 * etaSpring^2 / 2 + sx / k;
     phiMinTest = k * (K1 + 2 * K3 * etaSpring^2) - 4 * sx;
     phiPlusTest = k * (K1 + 2 * K3 * etaSpring^2) + 4 * sx;
-    varPsi = 1 / (hS * ((rhoS * A) / k^2 + s0S / k + Jbow(cL) * BM / (2*k)))...
+    varPsi = 1 / (hS * ((rhoS * A) / k^2 + s0S / k))...
         + (1/(M / k^2 + R / (2*k) + g^2/4)) + 1 / phiPlus;
 %     varPsiTest = ((4 * k * hS * rhoS * A + k^2 * phiPlusTest) * (4 * M + g^2 * k^2) + (4 * k^2 * hS * rhoS * A * phiPlusTest)) ... 
 %         / (hS * rhoS * A * phiPlusTest * (4 * M + g^2 * k^2));
@@ -252,8 +272,7 @@ for n = 2:lengthSound
     plateTerm = (phiPlusTest * hS * (rhoS * A + s0S * k) * (4 * M + 2 * R * k + g^2 * k^2) * g^2 * k^2)...
         / (varPsiTest * (4 * M + 2 * R * k + g^2 * k^2));
     
-    Adiv = [rhoS * A / k^2 + s0S / k ...
-             + Jbow(cL) * BM / (2*k),                 0,                            -plateTerm / hS;...
+    Adiv = [rhoS * A / k^2 + s0S / k,                 0,                            -plateTerm / hS;...
                      0,               M / k^2 + g^2 / 4 + R / (2*k),            plateTerm - g^2 / 4; ...
                      0,                       -g^2 / (4 * hP^2),      rhoP * H / k^2 + s0P / k + g^2 / (4*hP^2)];
     
@@ -261,8 +280,7 @@ for n = 2:lengthSound
          rhoS * A / k^2 * (2 * u1(cL) - u1Prev(cL)) + T / hS^2 * (u1(cL+1) - 2 * u1(cL) + u1(cL-1)) ...
          - ES * I / hS^4 * (u1(cL+2) - 4 * u1(cL+1) + 6 * u1(cL) - 4 * u1(cL-1) + u1(cL-2)) - FalphaTick / hS...
          + s0S / k * u1Prev(cL)...
-         + 2 * s1S / (hS^2 * k) * (u1(cL+1) - 2 * u1(cL) + u1(cL-1) - u1Prev(cL+1) + 2 * u1Prev(cL) - u1Prev(cL-1))...
-         + Jbow(cL) * BM * (u1Prev(cL) / (2 * k) + Vb); ...
+         + 2 * s1S / (hS^2 * k) * (u1(cL+1) - 2 * u1(cL) + u1(cL-1) - u1Prev(cL+1) + 2 * u1Prev(cL) - u1Prev(cL-1)); ...
          ... Mass
          M / k^2 * (2 * u2 - u2Prev) - M * w1^2 * (u2 - offset) + R / (2*k) * u2Prev - g^2 / 4 * etaPrev + psiPrev * g + FalphaTick; ...
          ... Plate
@@ -276,9 +294,8 @@ for n = 2:lengthSound
     Falpha = FalphaTick - plateTerm * solut(3);
     etaNext = solut(3) - u2Next;
 %     Falpha = 0;
-    u1Next = (((rhoS * A) / k^2 + s0S / k) * u1Next - (Jbr * Falpha)...
-        + (Jbow * BM .* (u1Prev / (2*k) + Vb))) ./ ((rhoS * A) / k^2 + s0S / k + Jbow * BM / (2*k));
-%     u3Next = u3Next - JbrP * (g^2 / 4 * (etaNext - etaPrev) + psiPrev * g) / ((rhoP * H) / k^2 + s0P / k);
+    u1Next = (((rhoS * A) / k^2 + s0S / k) * u1Next - (Jbr * Falpha) - Jbow * Fb * BM * q * exp(-a*q^2)) ./ ((rhoS * A) / k^2 + s0S / k);
+    u3Next = u3Next - JbrP * (g^2 / 4 * (etaNext - etaPrev) + psiPrev * g) / ((rhoP * H) / k^2 + s0P / k);
     
     if drawThings && drawStart == 0
 %         disp("Difference between etaNext and u3Next(brP) - u2Next (should be 0)")
@@ -380,6 +397,7 @@ for n = 2:lengthSound
     
     out(n) = u1Next(outputPos);
     out2(n) = u3Next(outputPosPlate);
+    out3(n) = u2Next;
     %% Draw functions
     if mod(n,drawSpeed) == 0 && n >= drawStart && drawThings == true
         
@@ -432,6 +450,15 @@ for n = 2:lengthSound
         drawnow
     end
 end
+posOut1 = out - min(out);
+totOut1 = (posOut1/max(abs(posOut1)) - 0.5) * 2;
+posOut2 = out2 - min(out2);
+totOut2 = (posOut2/max(abs(posOut2)) - 0.5) * 2;
+posOut3 = out3 - min(out3);
+totOut3 = (posOut3/max(abs(posOut3)) - 0.5) * 2;
+
+totOut = totOut1 + totOut2 + totOut3;
+
 if ~drawThings
     plot(out)
 end

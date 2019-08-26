@@ -1,8 +1,8 @@
 clear all;
 close all;
 
-drawString = false;
-drawSpeed = 1;
+drawString = true;
+drawSpeed = 10000;
 exc = "bowed";
 fs = 44100;
 k = 1 / fs;     % Time step
@@ -73,7 +73,7 @@ qPrev = -VbInit;
 qPrev2 = -VbInit;
 I = zeros(N,1);
 I(bp) = 1;
-rampVal = 10000;
+rampVal = 0;
 out = zeros(lengthSound, 1);
 J = 1/h * I;
 
@@ -99,26 +99,24 @@ rOCtotEnergy2 = zeros(lengthSound, 1);
 
 
 for n = 1 : lengthSound
-%     if n < rampVal
-%         Vb = VbInit * n / rampVal;
-%     else
+    if n < rampVal
+        Vb = VbInit * n / rampVal;
+    else
         Vb = VbInit;
-%     end
+    end
     
     % Newton-Raphson
     b = 2/k * Vb + 2 * s0 * Vb + I' * bB * u + I' * bC * uPrev;
     eps = 1;
     i = 0;
-    while eps>tol
-        q=qPrev-(1/h * Fb*BM*qPrev*exp(-a*qPrev^2)+2*qPrev/k+2*s0*qPrev+b)/...
-         (1/h * Fb*BM*(1-2*a*qPrev^2)*exp(-a*qPrev^2)+2/k+2*s0);
+    while eps>tol && i < 100
+        q=qPrev-(1/(rho * A * h) * Fb*BM*qPrev*exp(-a*qPrev^2)+2*qPrev/k+2*s0*qPrev+b)/...
+         (1/(rho * A * h)*Fb*BM*(1-2*a*qPrev^2)*exp(-a*qPrev^2)+2/k+2*s0);
         eps = abs(q-qPrev);
         qPrev = q;
         i = i + 1;
-        if i > 10000
-            disp('Nope');
-        end
     end
+    iSave(n) = i;
     qSave(n) = q;
     
 %     q = 2 / k * (u(bp) - uPrev(bp)) - qPrev - 2 * Vb;
@@ -128,6 +126,20 @@ for n = 1 : lengthSound
     excitation = J * Fb * sqrt(2 * a) * q * exp(-a*q^2 + 1/2);
     uNext = B * u + C * uPrev - excitation / (rho * A / k^2 + s0 / k);
 
+%     vrelSave(n) = (uNext(bp) - uPrev(bp)) / (2*k) - Vb;
+%     cla
+%     plot(vrelSave(1:n))
+%     hold on;
+%     plot(qSave(1:n))
+%     drawnow;
+%     vrelSave(n) - qSave(n)
+    
+%     vrelSave(n) = (I' * uNext - I' * uPrev) / (2*k) - Vb;
+%     cla
+%     plot(vrelSave(1:n))
+%     hold on;
+%     plot(qSave(1:n))
+%     drawnow;
     eVec = 2:N-1;
     vec = 3:N-2;
     
@@ -148,7 +160,13 @@ for n = 1 : lengthSound
     q2 = 2 / k * (u2(bp) - u2Prev(bp)) - qPrev2 - 2 * Vb;
 
     Bm = Fb * (sqrt(2 * a) * exp(-a * q2^2 + 1/2));
+%     u2Next(vec) = (rho * A / k^2 * (2 * u2(vec) - u2Prev(vec)) + T / h^2 * (u2(vec+1) - 2 * u2(vec) + u2(vec-1))...
+%         - E * In / h^4 * (u2(vec+2) - 4 * u2(vec+1) + 6 * u2(vec) - 4 * u2(vec-1) + u2(vec-2))...
+%         + s0 / k * u2Prev(vec) + 2 * s1 / (h * k^2) * (u2(vec+1) - 2 * u2(vec) + u2(vec-1) - u2Prev(vec+1) + 2 * u2Prev(vec) - u2Prev(vec-1))...
+%         + J(vec) * Bm .* (u2Prev(vec) / (2*k) + Vb)) ./ (rho * A / k^2 + s0 / k + J(vec) * Bm / (2*k));
     u2Next = ((rho * A / k^2 + s0 / k) * (B * u2 + C * u2Prev) + J * Bm .* (u2Prev / (2 * k) + Vb)) ./ (rho * A / k^2 + s0 / k + J * Bm / (2 * k));
+    
+    q2 - ((u2Next(bp) - u2Prev(bp)) / (2*k) - Vb);
     
     kinEnergy2(n) = rho * A * h / 2 * sum((1/k * (u2 - u2Prev)).^2);
     potEnergy2(n) = T / (2*h) * sum((u2(eVec + 1) - u2(eVec)) .* (u2Prev(eVec + 1) - u2Prev(eVec)))...
@@ -188,7 +206,7 @@ for n = 1 : lengthSound
     qPrev = q;
     uPrev = u;
     u = uNext;
-    
+%     
     qPrev2 = q2;
     u2Prev = u2;
     u2 = u2Next;
