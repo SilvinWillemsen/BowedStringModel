@@ -6,11 +6,11 @@ fs = 44100;
 k = 1/fs;
 
 %% Excitation (cos or bowed)
-exc = "bowed";
+exc = "cos";
 
 %% Drawing Functions
-drawThings = false;
-drawSpeed = 10000;
+drawThings = true;
+drawSpeed = 1;
 lengthSound = fs;
 drawStart = 0;
 damping = true;
@@ -21,7 +21,7 @@ offset = 1e-5;
 bridgeLoc = 1 / 8;
 
 %% String Variables
-f0 = 200;    
+f0 = 100;    
 rhoS = 7850;
 r = 0.0005;
 A = r^2 * pi;

@@ -10,7 +10,7 @@ function [B, C, N, h, Dxx, Dxxxx, s0, s1, bB, bC] = unscaledCreateStringNR(rho, 
     s0 = s0 * rho * A;
     s1 = s1 * rho * A;
     Ndec = N;
-    N = N - 4;
+%     N = N - 4;
     Ndec = Ndec - N;
     Dxxxx = (sparse(3:N, 1:N-2, ones(1, N-2), N, N) + ...
             sparse(2:N, 1:N-1, -4 * ones(1, N-1), N, N) + ...
@@ -40,7 +40,7 @@ function [B, C, N, h, Dxx, Dxxxx, s0, s1, bB, bC] = unscaledCreateStringNR(rho, 
                     sparse(1:N-1, 2:N, phi * ones(1, N-1), N, N);
     %     C = -((1 - s0 * k) * eye(N) + 2 * s1 * k * Dxx(2:end-1,2:end-1) / h^2) / (1 + s0 * k);
     
-    N = N + 4;
+%     N = N + 4;
     matVec = Ndec / 2 + 1 : N - Ndec / 2;
     Dxx2 = zeros(N);
     Dxx2(matVec, matVec) = Dxx;
@@ -50,13 +50,13 @@ function [B, C, N, h, Dxx, Dxxxx, s0, s1, bB, bC] = unscaledCreateStringNR(rho, 
     Dxxxx2(matVec, matVec) = Dxxxx;
     Dxxxx = Dxxxx2;
     
-    B2 = zeros(N);
-    B2(matVec, matVec) = B;
-    B = B2;
-
-    C2 = zeros(N);
-    C2(matVec, matVec) = C;
-    C = C2;
+%     B2 = zeros(N);
+%     B2(matVec, matVec) = B;
+%     B = B2;
+% 
+%     C2 = zeros(N);
+%     C2(matVec, matVec) = C;
+%     C = C2;
     
     bB2 = zeros(N);
     bB2(matVec, matVec) = bB;
