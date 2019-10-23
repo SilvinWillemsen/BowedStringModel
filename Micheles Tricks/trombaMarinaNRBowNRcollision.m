@@ -9,17 +9,17 @@ k = 1/fs;
 exc = "bowed";
 
 %% Drawing Functions
-drawThings = false;
-drawSpeed = 10000;
-lengthSound = fs*3;
-drawStart = 0;
+drawThings = true;
+drawSpeed = 10;
+lengthSound = fs;
+drawStart = 16000;
 damping = true;
 dampTest = false;
 onlyString = false;
 
 %% Bridge offset and location
 offset = 1e-5;
-bridgeLoc = 1 / 20;
+bridgeLoc = 1 / 4;
 
 %% String Variables
 f0 = 100;    
@@ -52,7 +52,7 @@ u1Next = zeros(NS, 1) + offset;
 courantNoS = c^2 * k^2 / hS^2 + 4 * kappaS^2 * k^2 / hS^4
 
 %% Bowing terms
-bP = floor (0.5 * NS);
+bP = floor (2/pi * NS);
 a = 100;
 BM = sqrt(2 * a) * exp(1/2);
 
@@ -63,7 +63,7 @@ else
 end
 
 Vb = -0.2;
-qPrev = -Vb;    
+qPrev = -Vb;
 tol = 1e-4;
 
 %% Mass Variables
@@ -260,7 +260,7 @@ for n = 2:lengthSound
     phiPlus = K1 / 4 + K3 * etaSpring^2 / 2 + sx / k;
     phiMinTest = k * (K1 + 2 * K3 * etaSpring^2) - 4 * sx;
     phiPlusTest = k * (K1 + 2 * K3 * etaSpring^2) + 4 * sx;
-    varPsi = 1 / (hS * ((rhoS * A) / k^2 + s0S / k)) ...
+    varPsi = 1 / (hS * ((rhoS * A) / k^2 + s0S / k))...
         + (1/(M / k^2 + R / (2*k) + g^2/4)) + 1 / phiPlus;
 %     varPsiTest = ((4 * k * hS * rhoS * A + k^2 * phiPlusTest) * (4 * M + g^2 * k^2) + (4 * k^2 * hS * rhoS * A * phiPlusTest)) ... 
 %         / (hS * rhoS * A * phiPlusTest * (4 * M + g^2 * k^2));
@@ -412,7 +412,7 @@ for n = 2:lengthSound
         
         % Draw States of... 
         
-        subplot(3,1,1);
+        subplot(4,1,1);
         cla
         hold on;
         %...string
@@ -423,47 +423,46 @@ for n = 2:lengthSound
         plot([cL-1, cL+1], [u3Next(brP) u3Next(brP)], 'Linewidth', 5);  
             
             % Extra functions
-            ylim([-amp / 2, amp / 2]); % Set y-limit to the amplitude of the raised cosine
+%             ylim([-amp / 15, amp / 15]); % Set y-limit to the amplitude of the raised cosine
             grid on; 
             set(gca, 'Linewidth', 2, 'Fontsize', 16)
             title("State of the system")
-            legend(["String", "Bridge", "Body"])
+            legend(["String", "Mass", "Barrier"])
    
         %...plate
-        subplot(3,1,2)
+        subplot(4,1,2)
         imagesc(reshape(u3Next, [Ny-1,Nx-1])')
         xticks([])
         yticks([])
-        title("Body (plate)")
-        set(gca,'Fontsize', 16)
-%         subplot(4,1,3);
-%         if s0S == 0 && s1S == 0 && s0P == 0 && s1P == 0 && sx == 0
-%             % Draw Normalised energy
-%             plot(totEnergy(10:n) / totEnergy(10) - 1);
-% %             plot(energy3(10:n) / energy3(10) - 1);
-%             title("Normalised Energy")
-%         elseif exc == "cos"
-%             plot(totEnergy(10:n));
-%             title("Total Energy (should decrease)")
-%         else
-%             plot(totEnergy(10:n));
-%             title("Total Energy (should be variable due to bow)");
-%         end
-%         subplot(4,1,4)
-%         % Draw rate of change of the energy
-%         cla
+%         zlim([-offset offset])
+%         plot(rOCdamp0PlateEnergy(10:n))
+%         cla 
 %         hold on;
-% %             plot(rOCdamp0PlateEnergy(10:n))
-% %         plot(rOCbowStringEnergy(1:n))
-%         plot(rOCTotEnergy(1:n))
-% %         plot(rOCbowStringEnergy(1:n))
-%         title("Rate of change of Energy minus damping (should be 0 within machine precision)")
-%         
-        subplot(3,1,3)
-        plot(gSave(1:n));
-        title("$g^n$", 'interpreter', 'latex')
-        set(gca,'Fontsize', 16)
-        drawnow;
+% %         plot(rOCenergy2(10:n))
+%         plot(rOCconnEnergy(10:n))
+        subplot(4,1,3);
+        if s0S == 0 && s1S == 0 && s0P == 0 && s1P == 0 && sx == 0
+            % Draw Normalised energy
+            plot(totEnergy(10:n) / totEnergy(10) - 1);
+%             plot(energy3(10:n) / energy3(10) - 1);
+            title("Normalised Energy")
+        elseif exc == "cos"
+            plot(totEnergy(10:n));
+            title("Total Energy (should decrease)")
+        else
+            plot(totEnergy(10:n));
+            title("Total Energy (should be variable due to bow)");
+        end
+        subplot(4,1,4)
+        % Draw rate of change of the energy
+        cla
+        hold on;
+%             plot(rOCdamp0PlateEnergy(10:n))
+%         plot(rOCbowStringEnergy(1:n))
+        plot(rOCTotEnergy(1:n))
+%         plot(rOCbowStringEnergy(1:n))
+        title("Rate of change of Energy minus damping (should be 0 within machine precision)")
+        drawnow
     end
 end
 posOut1 = out - min(out);

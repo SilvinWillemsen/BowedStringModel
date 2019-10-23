@@ -7,7 +7,7 @@ close all;
 clc;
 
 SR = 44100; % sample rate (Hz)
-TF = 1; % simulation duration (s)
+TF = 10; % simulation duration (s)
 drawThings = true;
 drawSpeed = 100;
 drawStart = 0;%SR * TF / 2;
@@ -138,37 +138,43 @@ for n=3:NF
     end
 %     
     if drawThings && n > viewWindow && drawFunc == 0 && mod(n,drawSpeed) == 0 && n > drawStart
-        subplot(4,2,1)
-        plot(u(1:n));
-        title("State u_1")
-        subplot(4,2,2)
-        plot(u2(1:n));
-        title("State u_2")
-        subplot(4,2,3)
-        plot(rOCkinEnergy(n-viewWindow:n));
-        hold on;
-        plot(rOCpotEnergy(n-viewWindow:n));
-        plot(rOCbowEnergy(n-viewWindow:n));
-        hold off;
-        title("Energy")
-        subplot(4,2,4)
-        plot(rOCkinEnergy2(n-viewWindow:n));
-        hold on;
-        plot(rOCpotEnergy2(n-viewWindow:n));
-        plot(rOCbowEnergy2(n-viewWindow:n));
-        hold off;
-        title("Energy")
-        subplot(4,2,5)
-        plot(rOCtotEnergy(n-viewWindow:n));
-        title("Rate-of-change Energy")
-        subplot(4,2,6)
-        plot(rOCtotEnergy2(n-viewWindow:n));
-        title("Rate-of-change Energy")
-        subplot(4,2,7)
-        plot(shouldBe0)
-        subplot(4,2,8)
-        plot(shouldBe0_2)
-        drawnow;
+%         subplot(4,2,1)
+%         plot(u(1:n));
+%         title("State u_1")
+%         subplot(4,2,2)
+%         plot(u2(1:n));
+%         title("State u_2")
+%         subplot(4,2,3)
+%         plot(rOCkinEnergy(n-viewWindow:n));
+%         hold on;
+%         plot(rOCpotEnergy(n-viewWindow:n));
+%         plot(rOCbowEnergy(n-viewWindow:n));
+%         hold off;
+%         title("Energy")
+%         subplot(4,2,4)
+%         plot(rOCkinEnergy2(n-viewWindow:n));
+%         hold on;
+%         plot(rOCpotEnergy2(n-viewWindow:n));
+%         plot(rOCbowEnergy2(n-viewWindow:n));
+%         hold off;
+%         title("Energy")
+%         subplot(4,2,5)
+%         plot(rOCtotEnergy(n-viewWindow:n));
+%         title("Rate-of-change Energy")
+%         subplot(4,2,6)
+%         plot(rOCtotEnergy2(n-viewWindow:n));
+%         title("Rate-of-change Energy")
+%         subplot(4,2,7)
+%         plot(shouldBe0)
+%         subplot(4,2,8)
+%         plot(shouldBe0_2)
+%         if n > 10000
+%             cla
+%             plot(u((n-10000):n))
+%             hold on
+%             plot(u2(n-10000:n))
+%             drawnow;
+%         end
     end
 %     testFunc2 = k^2 * FB * sqrt(2*sig) * q3 * exp(-sig * q3^2+1/2);
 %     u3(n) = 2 * u3(n-1) - u3(n-2) - k^2*w0^2 * u3(n-1) - testFunc2;

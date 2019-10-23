@@ -1,7 +1,7 @@
 clear all;
 % close all;
 figure
-drawString = true;
+drawString = false;
 drawSpeed = 5;
 
 fs = 44100;

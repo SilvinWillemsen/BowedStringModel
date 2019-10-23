@@ -3,7 +3,7 @@ function [B, C, N, h, Dxx, Dxxxx, s0, s1, bB, bC] = unscaledCreateStringNR(rho, 
     kappa = sqrt(E * I / (rho * A));
     c = sqrt(T/(rho * A));
 
-    h = sqrt((c^2 * k^2 + 4 * s1 * k + sqrt((c^2 * k^2 + 4 * s1 * k)^2 + 16 * kappa^2 * k^2)) / 2);
+    h = 1.0*sqrt((c^2 * k^2 + 4 * s1 * k + sqrt((c^2 * k^2 + 4 * s1 * k)^2 + 16 * kappa^2 * k^2)) / 2);
     N = floor(L/h); % Number of gridpoints
     h = L/N; % Recalculate gridspacing
     

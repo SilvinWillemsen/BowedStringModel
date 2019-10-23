@@ -4,7 +4,7 @@ close all;
 fs = 44100;
 k = 1/fs;
 
-drawThings = false;
+drawThings = true;
 drawSpeed = 5;
 collision = true;
 lengthSound = 1 * fs;

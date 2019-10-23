@@ -2,7 +2,7 @@ clear all;
 close all;
 
 drawString = true;
-drawSpeed = 10000;
+drawSpeed = 10;
 exc = "bowed";
 fs = 44100;
 k = 1 / fs;     % Time step
