@@ -83,20 +83,12 @@ for n=1:Nf
     etaB_plus = 0.5*(etaB+abs(etaB));
     etaM_plus = 0.5*(etaM+abs(etaM));
     
-%     etaPrevTest = etaTest;
-%     etaTest = etaNextTest;
-%     
-    etaPrev = eta;
-    eta = etaNext;
-
 %     eta = uMy2 - uMy1(xMint);
+    
     gB = sqrt(KB*(alphaB+1)/2)*etaB_plus^((alphaB-1)/2);
     gM = sqrt(KM*(alphaM+1)/2)*etaM_plus^((alphaM-1)/2);
     gMy = sqrt(KM * (alphaM+1) / 2) * subplus(eta)^((alphaM - 1)/2);
     
-    if gM ~= 0
-        disp("wait");
-    end
     A0 = [1 -k^2*gM^2/(4*M); 0 1+(k^2/(4*M))*gM^2+(k^2/(4*rho*A*h))*gM^2*(J'*J)];
         
     b0 = [-(w1-w2)/k+(k/(2*M))*gM*psiM1;   (w1-w2)/k-(k/(2*M))*gM*psiM1-J'*(u1-u2)/k-(T*k/(2*rho*A))*J'*(Dxx*u1)-(k/(2*rho*A*h))*(J'*J)*gM*psiM1];
@@ -111,7 +103,12 @@ for n=1:Nf
     u = 2*u1-u2+c^2*k^2*Dxx*u1+(k^2/(rho*A))*(1/h)*J*gM*0.5*(psiM+psiM1);
     w = 2*w1-w2-(k^2/M)*gM*0.5*(psiM+psiM1);%+(k^2/M)*gB*0.5*(psiB+psiB1);
     
-%     
+    etaNext = w - J' * u;
+    
+    % testing \delta_{t+}\psi^{n-1/2} = g_M^n\delta_{t\cdot}\eta_M
+    % their difference should be 0
+    disp ("Difference should be 0: " + (1/k * (psiM - psiM1) - (gM * 1/(2*k) * (etaNext - etaPrev))))
+    
     Amat = [rho*A/k^2+gMy^2/(4*h),   -gMy^2/(4*h);...
                   -gMy^2/4,          M/k^2+gMy^2/4];
               
@@ -123,17 +120,12 @@ for n=1:Nf
     
     test2 = ((uMy2-uMy2Prev)/k-J'*(uMy1-uMy1Prev)/k-(k/(2*M))*gM*psiMyPrev-(T*k/(2*rho*A))*J'*(Dxx*uMy1)-(k/(2*rho*A*h))*gMy*psiMyPrev) ...
       / (1+(k^2/(4*M))*gMy^2+(k^2/(4*rho*A*h))*gMy^2);
-    etaNext = solut(2)-solut(1);
+
     psiMy = psiMyPrev+k*gMy*test2;
-%     psiMy = gMy / 2 * (etaNext - etaPrev) + psiMyPrev;
+% %     psiMy = gMy / 2 * (etaNext - etaPrev) + psiMyPrev;
     uMy1Next = 2 * uMy1 - uMy1Prev + T * k^2 / (rho * A) * Dxx * uMy1 + (k^2/(rho*A*h)) * J * gMy * 0.5 * (psiMy + psiMyPrev);
     uMy2Next = 2 * uMy2 - uMy2Prev - (k^2 / M) * gMy * 0.5 * (psiMy + psiMyPrev);
-%     uMy1Next = 2 * uMy1 - uMy1Prev + T * k^2 / (rho * A) * Dxx * uMy1 + (k^2/(rho*A*h)) * J * (gMy^2 / 4 * (etaNext - etaPrev) + psiMyPrev * gMy);
-%     uMy2Next = 2 * uMy2 - uMy2Prev - (k^2 / M) * (gMy^2 / 4 * (etaNext - etaPrev) + psiMyPrev * gMy);
-    diff(n) = uMy1Next(xMint) - solut(1);
-    etaNext = uMy2Next - uMy1Next(xMint);
-%     (gMy / 2 * (psiMy + psiMyPrev)) - (gMy^2 / 4 * (etaNext - etaPrev) + psiMyPrev * gMy) 
-    
+
     HS(n) = 0.5*h*rho*A*sum((u-u1).^2)/k^2+0.5*T*sum((u(2:end)-u(1:end-1)).*(u1(2:end)-u1(1:end-1)))/h;
     HM(n) = 0.5*M*(w-w1)^2/k^2;
     HC(n) = 0.5*psiM^2;%+0.5*psiB^2;
@@ -141,6 +133,7 @@ for n=1:Nf
     HMy(n) = 0.5*M*(uMy2Next-uMy2)^2/k^2+0.5*h*rho*A*sum((uMy1Next-uMy1).^2)/k^2+0.5*T*sum(([uMy1Next;0]-[0;uMy1Next]).*([uMy1;0]-[0;uMy1]))/h+0.5*psiMy^2;
        
     if mod(n, drawSpeed) == 0
+        figure(1)
         subplot(5,1,1)
         hold off
         plot([1:N-1]'*h, u, 'k');
@@ -165,6 +158,13 @@ for n=1:Nf
         subplot(5,1,5)
         plot(u - uMy1Next)
         drawnow
+%         figure(2)
+%         cla
+%         plot(testSub1(1:n))
+%         hold on;
+%         plot(testSub2(1:n));
+%         drawnow
+        
     end
     u2 = u1;
     u1 = u;
@@ -173,6 +173,9 @@ for n=1:Nf
     w1 = w;
     
 %     psiB1 = psiB;
+    etaPrev = eta;
+    eta = etaNext;
+    
     psiM1 = psiM;
     
     uMy1Prev = uMy1;
