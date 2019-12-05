@@ -7,10 +7,10 @@ k = 1/fs;
 
 %% Excitation (cos or bowed)
 exc = "bowed";
-plotWeirdBehaviour = true;
+plotWeirdBehaviour = false;
 
 %% Drawing Functions
-drawThings = true;
+drawThings = false;
 drawSpeed = 10;
 lengthSound = fs * 2;
 drawStart = fs*0.4;
@@ -20,10 +20,10 @@ onlyString = false;
 
 %% Bridge offset and location
 offset = 1e-5;
-bridgeLoc = 0.8;
+bridgeLoc = 1/20;
 
 %% String Variables
-f0 = 100;
+f0 = 50;
 rhoS = 7850;
 r = 0.0005;
 A = r^2 * pi;
@@ -39,7 +39,7 @@ kappaS = sqrt (ES*I / (rhoS*A));   % Stiffness coefficient
 % Damping coefficients
 if damping
     s0S = 0.1;
-    s1S = 0.05;
+    s1S = 0.005;
 else
     s0S = 0;
     s1S = 0;
@@ -72,7 +72,7 @@ qPrev = -Vb;
 tol = 1e-4;
 
 %% Mass Variables
-f1 = 1000;    % fundamental frequency [Hz] (< 1 / (k * pi) (< 14,037 Hz))
+f1 = 500;    % fundamental frequency [Hz] (< 1 / (k * pi) (< 14,037 Hz))
 w1 = 2 * pi * f1;   % angular frequency (< 2 / k (< 88,200 rad/s))
 M = 0.001;
 
