@@ -6,14 +6,15 @@ fs = 44100;
 k = 1/fs;
 
 %% Excitation (cos or bowed)
-exc = "cos";
+exc = "bowed";
+plotWeirdBehaviour = true;
 
 %% Drawing Functions
 drawThings = true;
 drawSpeed = 10;
-lengthSound = fs*2;
-drawStart = 0;
-damping = false;
+lengthSound = fs * 2;
+drawStart = fs*0.4;
+damping = true;
 dampTest = false;
 onlyString = false;
 
@@ -22,23 +23,23 @@ offset = 1e-5;
 bridgeLoc = 0.8;
 
 %% String Variables
-   
+f0 = 100;
 rhoS = 7850;
-r = 0.0003;
+r = 0.0005;
 A = r^2 * pi;
-% c = f0 * 2;         % Wave-Speed
-T = 10;  % Tension
+c = f0 * 2;         % Wave-Speed
+% T = 10;  % Tension
+T = c^2 * rhoS * A;
 k = 1 / fs;         % Time step
 ES = 2e11;           % Young's modulus
 I = r^4 * pi / 4;   % Area moment of inertia
 L = 1;              % String Length
-c = sqrt(T / rhoS * A);
 kappaS = sqrt (ES*I / (rhoS*A));   % Stiffness coefficient
 
 % Damping coefficients
 if damping
     s0S = 0.1;
-    s1S = 0.005;
+    s1S = 0.05;
 else
     s0S = 0;
     s1S = 0;
@@ -50,13 +51,13 @@ u1 = zeros(NS, 1) + offset;
 u1Prev = zeros(NS, 1) + offset;
 u1Next = zeros(NS, 1) + offset;
 
-e = ones(NS-1,1);
-Dxx = (1/hS^2)*spdiags([e -2*e e],-1:1,NS-1,NS-1);
-
+% e = ones(NS-1,1);
+% Dxx = (1/hS^2)*spdiags([e -2*e e],-1:1,NS-1,NS-1);
+% 
 courantNoS = c^2 * k^2 / hS^2 + 4 * kappaS^2 * k^2 / hS^4
 
 %% Bowing terms
-bP = floor (2/pi * NS);
+bP = floor (1/pi * NS);
 a = 100;
 BM = sqrt(2 * a) * exp(1/2);
 
@@ -71,7 +72,7 @@ qPrev = -Vb;
 tol = 1e-4;
 
 %% Mass Variables
-f1 = 0;    % fundamental frequency [Hz] (< 1 / (k * pi) (< 14,037 Hz))
+f1 = 1000;    % fundamental frequency [Hz] (< 1 / (k * pi) (< 14,037 Hz))
 w1 = 2 * pi * f1;   % angular frequency (< 2 / k (< 88,200 rad/s))
 M = 0.001;
 
@@ -81,7 +82,7 @@ else
     R = 0.0;
 end
 
-u2 = offset / 2;
+u2 = offset;
 u2Prev = u2;
 u2Next = 0;
 
@@ -101,6 +102,8 @@ else
 end
 
 [BP, CP, NP, Nx, Ny, hP, kappaP, Denergy, D, DD, s0P, s1P] = unscaledCreatePlate (Lx, Ly, rhoP, EP, H, s0P, s1P, k);
+Nx = Nx - 1;
+Ny = Ny - 1;
 
 u3 = zeros(NP, 1);
 horPos = 0.6;
@@ -108,10 +111,14 @@ vertPos = bridgeLoc;
 horOutPos = 1 / 3;
 vertOutPos = 1 / 7;
 
-brP = floor((Ny - 1) * floor(horPos * (Nx - 1)) + (Ny - 1) * vertPos);
-outputPosPlate = floor((Ny - 1) * floor(horOutPos * (Nx - 1)) + (Ny - 1) * vertOutPos);
+brP = floor(Ny * floor(horPos * Nx) + Ny * vertPos);
+outputPosPlate = floor(Ny * floor(horOutPos * Nx) + Ny * vertOutPos);
 
-% u3(brP) = offset;
+
+if exc == "plate"
+    u3(brP) = -offset;
+end
+
 u3Prev = zeros(NP, 1);
 u3Next = zeros(NP, 1);
 
@@ -128,17 +135,17 @@ K2 = 5 * 10^10;
 
 %% Excitation
 amp = -offset*10;
-wid = 0.1;
-x0 = 0.5;
-for qq=1:NS-1
-    xcur = qq*hS;
-    dist = abs(xcur-x0);
-    if(dist<=wid)
-        u1Next(qq) = 0.5*amp*(1+cos(pi*dist/wid));
-    end
+
+if strcmp(exc, "cos")
+    width = 10;
+    loc = 1/4;
+    startIdx = floor(floor(loc * NS) - width / 2);
+    endIdx = floor(floor(loc * NS) + width / 2);
+    u1Next(startIdx : endIdx) = u1(startIdx : endIdx) - amp * (1 - cos(2 * pi * [0:width]' / width)) / 2;
 end
 u1 = u1Next;
 u1Prev = u1Next;
+
 % amp = 10 * offset;
 % if strcmp(exc, "cos")
 %     width = 0.1 * NS;
@@ -219,19 +226,19 @@ for n = 1:lengthSound
     eta1 = u2 - u1(cL);
     eta2 = u3(brP) - u2;
     %% Explicitly calculate g for Mass-Plate
-    if alpha1 == 1
-        g1 = 0;
-        if eta1 > 0
-            g1 = sqrt(K1 * (alpha1+1) / 2);
-        end
-    else
-        g1 = sqrt(K1 * (alpha1+1) / 2) * subplus(eta1)^((alpha1 - 1)/2);
-    end
+%     if alpha1 == 1
+%         g1 = 0;
+%         if eta1 > 0
+%             g1 = sqrt(K1 * (alpha1+1) / 2);
+%         end
+%     else
+        g1 = sqrt(K1 * (alpha1+1) / 2) * abs(eta1)^((alpha1 - 1)/2);
+%     end
     g1Save(n) = g1;
     
-    if g1 ~= 0
-        disp("wait")
-    end
+%     if g1 ~= 0
+%         disp("wait")
+%     end
     if alpha2 == 1
         g2 = 0;
         if eta2 > 0
@@ -267,32 +274,13 @@ for n = 1:lengthSound
     else
         q = 0;
     end
-
-    %% Matrix solution
-    %%%%%% OLD STUFF
-%     Adiv = [rhoS * A / k^2 + s0S / k + g1^2 / (4 * hS),               -g1^2 / (4 * hS),                                   0;...
-%                              -g1^2 / 4,                   M / k^2 + R / (2*k) + g1^2 / 4 + g2^2 / 4,                 -g2^2 / 4; ...
-%                                   0,                                -g2^2 / (4 * hP^2),            rhoP * H / k^2 + s0P / k + g2^2 / (4*hP^2)];
-%     v = [... String
-%          u1Next(cL) * (rhoS * A / k^2 + s0S / k) + (-g1^2 / 4 * eta1Prev + psi1Prev * g1) / hS;...
-%          ... Mass
-%          u2Next * (M / k^2 + R / (2*k)) + g1^2 / 4 * eta1Prev - psi1Prev * g1 - g2^2 / 4 * eta2Prev + psi2Prev * g2;
-%          ... Plate
-%          u3Next(brP) * (rhoP * H / k^2 + s0P / k) + (g2^2 / 4 * eta2Prev - psi2Prev * g2) / hP^2];
     
-%     solut = Adiv \ v;
-%     u2Next = solut(2);
-%     eta1Next = u2Next - solut(1);
-%     eta2Next = solut(3) - u2Next;
-
-%     u1Next = u1Next + (Jbr * (g1^2 / 4 * (eta1Next - eta1Prev) + psi1Prev * g1)) ./ ((rhoS * A) / k^2 + s0S / k);
-%     u3Next = u3Next - JbrP * (g2^2 / 4 * (eta2Next - eta2Prev) + psi2Prev * g2) / ((rhoP * H) / k^2 + s0P / k);
-
-%%%%% damped stuff
     s0S = s0S / (rhoS * A);
     s1S = s1S / (rhoS * A);
     s0P = s0P / (rhoP * H);
     s1P = s1P / (rhoP * H);
+    
+    %% Matrix solution
     
     Adiv = [1 + g1^2*k^2 / (2*M*(2+R*k)) + g1^2*k^2 / (4*rhoS*A*hS*(1+s0S*k)), -g2^2*k^2 / (2*M*(2+R*k)); ...
             -g1^2*k^2 / (2*M*(2+R*k)), 1 + g2^2*k^2 / (2*M*(2+R*k)) + g2^2*k^2 / (4*hP^2*rhoP*H*(1+s0P*k)) ];
@@ -304,7 +292,8 @@ for n = 1:lengthSound
     psi1 = g1*k*solut(1) + psi1Prev;
     psi2 = g2*k*solut(2) + psi2Prev;
     
-    u1Next = u1Next + Jbr * k^2 / (rhoS * A * (1 + s0S*k)) * 0.5 * (psi1 + psi1Prev) * g1;
+%     u1Next = u1Next + (- Jbow * Fb * BM * q * exp(-a*q^2)) ./ ((rhoS * A) / k^2 + s0S / k);
+    u1Next = u1Next + k^2 / (rhoS * A * (1 + s0S*k)) * (Jbr * 0.5 * (psi1 + psi1Prev) * g1 - Jbow * Fb * BM * q * exp(-a*q^2));
     u2Next = u2Next - k^2 / (M * (1 + R*k / 2)) * 0.5 * (psi1 + psi1Prev) * g1 + k^2 / (M * (1 + R*k / 2)) * 0.5 * (psi2 + psi2Prev) * g2;
     u3Next = u3Next - JbrP * k^2 / (rhoP * H * (1 + s0P*k)) * 0.5 * (psi2 + psi2Prev) * g2;
 %     Falpha = 0;
@@ -312,7 +301,6 @@ for n = 1:lengthSound
     s1S = s1S * (rhoS * A);
     s0P = s0P * (rhoP * H);
     s1P = s1P * (rhoP * H);
-
 %%%%% undamped stuff
 %     Adiv = [1 + g1^2*k^2 / (4*M) + g1^2*k^2 / (4*rhoS*A*hS), -g2^2*k^2 / (4*M); ...
 %             -g1^2*k^2 / (4*M), 1 + g2^2*k^2 / (4*M) + g2^2*k^2 / (4*hP^2*rhoP*H) ];
@@ -345,7 +333,7 @@ for n = 1:lengthSound
     %% Calculate energy of the system
     % Energy String
     kinEnergy1(n) = rhoS * A / 2 * hS * sum((1/k * (u1 - u1Prev)).^2);
-    potEnergy1(n) = T / 2 * 1/hS * sum((u1(3:NS-1) - u1(2:NS-2)) .* (u1Prev(3:NS-1) - u1Prev(2:NS-2)))...
+    potEnergy1(n) = T / 2 * 1/hS * sum((u1(3:NS) - u1(2:NS-1)) .* (u1Prev(3:NS) - u1Prev(2:NS-1)))...
         + ES * I / 2 * 1/hS^3 * sum((u1(eVec+1) - 2 * u1(eVec) + u1(eVec-1)) ...
         .* (u1Prev(eVec+1) - 2 * u1Prev(eVec) + u1Prev(eVec-1)));
     energy1(n) = kinEnergy1(n) + potEnergy1(n);
@@ -367,42 +355,42 @@ for n = 1:lengthSound
     % Total Energy
     totEnergy(n) = energy1(n) + energy2(n) + energy3(n) + colEnergy1(n) + colEnergy2(n);
     
-%     %% Calculate rate-of-changes in energies (inner product of delta tdot with scheme) 
-%     
-%     % String
-%     rOCkinEnergy1(n) = hS * rhoS * A / (2 * k^3) * sum((u1Next - 2 * u1 + u1Prev) .* (u1Next - u1Prev));
-%     rOCpotEnergy1(n) = hS * T / (2*k*hS^2) * sum((u1(vec+1) - 2 * u1(vec) + u1(vec-1)).* (u1Next(vec) - u1Prev(vec))) ...
-%          - hS * ES * I / (2 * k * hS^4) * sum((u1(vec+2) - 4 * u1(vec+1) + 6 * u1(vec) - 4 * u1(vec-1) + u1(vec-2)) .* (u1Next(vec) - u1Prev(vec)));%...
-%     rOCdamp0StringEnergy(n) = -2 * s0S * hS / (4 * k^2) * sum((u1Next - u1Prev).*(u1Next - u1Prev));
-%     rOCdamp1StringEnergy(n) = 2 * hS * s1S / (2 * k^2 * hS^2) * sum((u1(eVec+1) - 2 * u1(eVec) + u1(eVec-1) - u1Prev(eVec+1) + 2 * u1Prev(eVec) - u1Prev(eVec-1)) .* (u1Next(eVec) - u1Prev(eVec)));
-%     rOCbowStringEnergy(n) =  -Fb * (u1Next(bP) - u1Prev(bP)) / (2 * k) * sqrt(2*a) * q * exp(-a*q^2 + 1/2);
-%     %-sum(Jbow * hS * Fb * sqrt(2*a) .* ((u1Next - u1Prev) / (2 * k) - Vb) * exp(-a * q^2 + 1/2) .* (u1Next - u1Prev) / (2*k));
-%     rOCenergy1(n) = rOCkinEnergy1(n) - rOCpotEnergy1(n) - rOCdamp0StringEnergy(n) - rOCdamp1StringEnergy(n) - rOCbowStringEnergy(n);
-%     
-%     % Mass
-%     rOCkinEnergy2(n) = M / (2*k^3) * (u2Next - u2Prev) * (u2Next - 2 * u2 + u2Prev);
-%     rOCpotEnergy2(n) = -M * w1^2 / (2*k) * (u2Next - u2Prev) * (u2 - offset);
-%     rOCdampMassEnergy(n) = -R / (4 * k^2) * (u2Next - u2Prev) * (u2Next - u2Prev);
-%     rOCenergy2(n) = rOCkinEnergy2(n) - rOCpotEnergy2(n) - rOCdampMassEnergy(n);
-%     
-%     % Plate
-%     rOCkinEnergy3(n) = hP^2 * rhoP * H / (2*k^3) * sum((u3Next - 2 * u3 + u3Prev) .* (u3Next - u3Prev));
-%     rOCpotEnergy3(n) = -(D*hP^2) / (2*k) * sum((DD * u3) .* (u3Next - u3Prev));
-%     rOCdamp0PlateEnergy(n) = -2 * s0P * hP^2 / (4 * k^2) * sum((u3Next - u3Prev) .* (u3Next - u3Prev));
-%     rOCdamp1PlateEnergy(n) = 2 * s1P * hP^2 / (2 * k^2 * hP^2) * sum((Denergy * u3 - Denergy * u3Prev) .* (u3Next - u3Prev));
-%     
-%     rOCenergy3(n) = rOCkinEnergy3(n) - rOCpotEnergy3(n) - rOCdamp0PlateEnergy(n) - rOCdamp1PlateEnergy(n);
-%    
-%     % Collision (string part)
-%     rOCcolEnergy1(n) = 1 / (4 * k) * g1 * (psi1 + psi1Prev) * (u1Next(cL) - u1Prev(cL));
-%     % Collision (mass part)
-%     rOCcolEnergy2(n) = -1 / (4 * k) * g1 * (psi1 + psi1Prev) * (u2Next - u2Prev) + 1 / (4 * k) * g2 * (psi2 + psi2Prev) * (u2Next - u2Prev);
-%     % Collision (plate part)
-%     rOCcolEnergy3(n) = -1 / (4 * k) * g2 * (psi2 + psi2Prev) * (u3Next(brP) - u3Prev(brP));
-%         
-%     %Total Energy
-%     rOCTotEnergy(n) = rOCenergy1(n) + rOCenergy2(n) + rOCenergy3(n) - rOCcolEnergy1(n) - rOCcolEnergy2(n);% - rOCcolEnergy3(n); %including damping so should be 0
-%     
+    %% Calculate rate-of-changes in energies (inner product of delta tdot with scheme) 
+    
+    % String
+    rOCkinEnergy1(n) = hS * rhoS * A / (2 * k^3) * sum((u1Next - 2 * u1 + u1Prev) .* (u1Next - u1Prev));
+    rOCpotEnergy1(n) = hS * T / (2*k*hS^2) * sum((u1(vec+1) - 2 * u1(vec) + u1(vec-1)).* (u1Next(vec) - u1Prev(vec))) ...
+         - hS * ES * I / (2 * k * hS^4) * sum((u1(vec+2) - 4 * u1(vec+1) + 6 * u1(vec) - 4 * u1(vec-1) + u1(vec-2)) .* (u1Next(vec) - u1Prev(vec)));%...
+    rOCdamp0StringEnergy(n) = -2 * s0S * hS / (4 * k^2) * sum((u1Next - u1Prev).*(u1Next - u1Prev));
+    rOCdamp1StringEnergy(n) = 2 * hS * s1S / (2 * k^2 * hS^2) * sum((u1(eVec+1) - 2 * u1(eVec) + u1(eVec-1) - u1Prev(eVec+1) + 2 * u1Prev(eVec) - u1Prev(eVec-1)) .* (u1Next(eVec) - u1Prev(eVec)));
+    rOCbowStringEnergy(n) =  -Fb * (u1Next(bP) - u1Prev(bP)) / (2 * k) * sqrt(2*a) * q * exp(-a*q^2 + 1/2);
+    %-sum(Jbow * hS * Fb * sqrt(2*a) .* ((u1Next - u1Prev) / (2 * k) - Vb) * exp(-a * q^2 + 1/2) .* (u1Next - u1Prev) / (2*k));
+    rOCenergy1(n) = rOCkinEnergy1(n) - rOCpotEnergy1(n) - rOCdamp0StringEnergy(n) - rOCdamp1StringEnergy(n) - rOCbowStringEnergy(n);
+    
+    % Mass
+    rOCkinEnergy2(n) = M / (2*k^3) * (u2Next - u2Prev) * (u2Next - 2 * u2 + u2Prev);
+    rOCpotEnergy2(n) = -M * w1^2 / (2*k) * (u2Next - u2Prev) * (u2 - offset);
+    rOCdampMassEnergy(n) = -M * R / (4 * k^2) * (u2Next - u2Prev) * (u2Next - u2Prev);
+    rOCenergy2(n) = rOCkinEnergy2(n) - rOCpotEnergy2(n) - rOCdampMassEnergy(n);
+    
+    % Plate
+    rOCkinEnergy3(n) = hP^2 * rhoP * H / (2*k^3) * sum((u3Next - 2 * u3 + u3Prev) .* (u3Next - u3Prev));
+    rOCpotEnergy3(n) = -(D*hP^2) / (2*k) * sum((DD * u3) .* (u3Next - u3Prev));
+    rOCdamp0PlateEnergy(n) = -2 * s0P * hP^2 / (4 * k^2) * sum((u3Next - u3Prev) .* (u3Next - u3Prev));
+    rOCdamp1PlateEnergy(n) = 2 * s1P * hP^2 / (2 * k^2 * hP^2) * sum((Denergy * u3 - Denergy * u3Prev) .* (u3Next - u3Prev));
+    
+    rOCenergy3(n) = rOCkinEnergy3(n) - rOCpotEnergy3(n) - rOCdamp0PlateEnergy(n) - rOCdamp1PlateEnergy(n);
+   
+    % Collision (string part)
+    rOCcolEnergy1(n) = 1 / (4 * k) * g1 * (psi1 + psi1Prev) * (u1Next(cL) - u1Prev(cL));
+    % Collision (mass part)
+    rOCcolEnergy2(n) = -1 / (4 * k) * g1 * (psi1 + psi1Prev) * (u2Next - u2Prev) + 1 / (4 * k) * g2 * (psi2 + psi2Prev) * (u2Next - u2Prev);
+    % Collision (plate part)
+    rOCcolEnergy3(n) = -1 / (4 * k) * g2 * (psi2 + psi2Prev) * (u3Next(brP) - u3Prev(brP));
+        
+    %Total Energy
+    rOCTotEnergy(n) = rOCenergy1(n) + rOCenergy2(n) + rOCenergy3(n) - rOCcolEnergy1(n) - rOCcolEnergy2(n) - rOCcolEnergy3(n); %including damping so should be 0
+    
     %% Update states
     psi1Prev = psi1; 
     psi2Prev = psi2; 
@@ -429,61 +417,80 @@ for n = 1:lengthSound
     out3(n) = u2Next;
     %% Draw functions
     if mod(n,drawSpeed) == 0 && n >= drawStart && drawThings == true
-        
-        % Draw States of... 
-        subplot(4,1,1);
-        cla
-        hold on;
-        %...string
-        plot(u1Next, 'Linewidth', 2);    
-        %...mass
-        scatter(cL, u2Next, 400, '.');    
-        %...barrier
-        plot([cL-1, cL+1], [u3Next(brP) u3Next(brP)], 'Linewidth', 5);  
-            
-        % Extra functions
-%             ylim([-amp / 2, amp / 2]); % Set y-limit to the amplitude of the raised cosine
-        grid on; 
-        set(gca, 'Linewidth', 2, 'Fontsize', 16)
-        title("State of the system")
-        legend(["String", "Bridge", "Body"])
-   
-        %...plate
-        subplot(4,1,2)
-        imagesc(reshape(u3Next, [Ny-1,Nx-1])')
-        xticks([])
-        yticks([])
-        title("Body (plate)")
-        set(gca,'Fontsize', 16)
-        subplot(4,1,3);
-        if s0S == 0 && s1S == 0 && s0P == 0 && s1P == 0
-            % Draw Normalised energy
-            plot(totEnergy(10:n) / totEnergy(10) - 1);
-%             plot(energy3(10:n) / energy3(10) - 1);
-            title("Normalised Energy")
-        elseif exc == "cos"
-%             plot(totEnergy(10:n));
-            plot
-            title("Total Energy (should decrease)")
+        if ~plotWeirdBehaviour
+            % Draw States of... 
+            subplot(4,1,1);
+            cla
+            hold on;
+            %...string
+            plot(u1Next, 'Linewidth', 2);    
+            %...mass
+            scatter(cL, u2Next, 400, '.');    
+            %...barrier
+            plot([cL-1, cL+1], [u3Next(brP) u3Next(brP)], 'Linewidth', 5);  
+
+            % Extra functions
+    %             ylim([-amp / 2, amp / 2]); % Set y-limit to the amplitude of the raised cosine
+            grid on; 
+            set(gca, 'Linewidth', 2, 'Fontsize', 16)
+            title("State of the system")
+            legend(["String", "Bridge", "Body"])
+
+            %...plate
+            subplot(4,1,2)
+            imagesc(reshape(u3Next, [Ny,Nx])')
+            xticks([])
+            yticks([])
+            title("Body (plate)")
+            set(gca,'Fontsize', 16)
+            subplot(4,1,3);
+            if s0S == 0 && s1S == 0 && s0P == 0 && s1P == 0
+                % Draw Normalised energy
+                plot(totEnergy(10:n) / totEnergy(10) - 1);
+    %             hold off;
+    %             plot((kinEnergy1(1:n) + potEnergy1(1:n)) - (kinEnergy1(1) + potEnergy1(1)))
+    %             hold on;
+    %             plot(colEnergy1(1:n))
+    %             plot(energy3(10:n) / energy3(10) - 1);
+                title("Normalised Energy")
+            elseif exc == "cos"
+                plot(totEnergy(10:n))
+                title("Total Energy (should decrease)")
+            else
+                range = 100;
+                if (n > range)
+                    plot(g2Save(n-range:n));
+                end
+                title("$g_2^n$", 'interpreter', 'latex')
+    %             title("Total Energy (should be variable due to bow)");
+            end
+            subplot(4,1,4)
+            % Draw rate of change of the energy
+            cla
+            hold on;
+    %             plot(rOCdamp0PlateEnergy(10:n))
+    %         plot(rOCbowStringEnergy(1:n))
+            plot(rOCTotEnergy(1:n))
+    %         plot(g1Save(1:n))
+    %         plot(rOCbowStringEnergy(1:n))
+            title("Rate of change of Energy minus damping (should be 0 within machine precision)")
+
+    %         subplot(3,1,3)
+    %         plot(g1Save(1:n));
+    %         title("$g^n$", 'interpreter', 'latex')
+    %         set(gca,'Fontsize', 16)
         else
-            plot(totEnergy(10:n));
-            title("Total Energy (should be variable due to bow)");
+            subplot(5,1,1)
+            plot(energy1(1:n));
+            subplot(5,1,2)
+            plot(energy2(1:n));
+            subplot(5,1,3)
+            plot(energy3(1:n));
+            subplot(5,1,4)
+            plot(colEnergy1(1:n));
+            subplot(5,1,5)
+            plot(colEnergy2(1:n));
         end
-        subplot(4,1,4)
-        % Draw rate of change of the energy
-        cla
-        hold on;
-%             plot(rOCdamp0PlateEnergy(10:n))
-%         plot(rOCbowStringEnergy(1:n))
-        plot(rOCTotEnergy(1:n))
-%         plot(g1Save(1:n))
-%         plot(rOCbowStringEnergy(1:n))
-        title("Rate of change of Energy minus damping (should be 0 within machine precision)")
-        
-%         subplot(3,1,3)
-%         plot(g1Save(1:n));
-%         title("$g^n$", 'interpreter', 'latex')
-%         set(gca,'Fontsize', 16)
         drawnow;
     end
 end
@@ -504,5 +511,4 @@ if ~drawThings
         plot(totOut);
     end
 end
-figure;
-plot(g1Save)
+plot(g2Save)
