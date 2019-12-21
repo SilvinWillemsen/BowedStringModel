@@ -10,7 +10,7 @@ clear all;
 close all;
 
 %% Sample rate
-fsScalar = 35; % 1: no weird behaviour, 10: weird behaviour, 20, no weird behaviour
+fsScalar = 10; % 1: no weird behaviour, 10: weird behaviour, 20, no weird behaviour
 fs = 44100 * fsScalar; 
 k = 1/fs;
 
@@ -110,23 +110,6 @@ w1Prev = w1Next;
 %% Initialise
 psiPrev = 0;
 
-%% Initialise Energy Vectors
-kinEnergyu1 = zeros(lengthSound, 1);
-potEnergyu1 = zeros(lengthSound, 1);
-energyu1 = zeros(lengthSound, 1);
-
-kinEnergyu2 = zeros(lengthSound, 1); 
-potEnergyu2 = zeros(lengthSound, 1);
-energyu2 = zeros(lengthSound, 1);
-
-kinEnergy3 = zeros(lengthSound, 1);
-potEnergy3 = zeros(lengthSound, 1);
-energy3 = zeros(lengthSound, 1);
-
-colEnergyu1 = zeros(lengthSound, 1);
-colEnergy2 = zeros(lengthSound, 1);
-totEnergyu = zeros(lengthSound, 1);
-
 vec = 3:NS-2;
 eVec = 2:NS-1; % energy vector
 Ibr = zeros(NS,1);
@@ -208,6 +191,9 @@ for n = 1:lengthSound
     forceEXP(n)  = 0.5 * (psi + psiPrev) * g;
     u1Next(cL) = u1Next(cL) + k^2 / (rho * A * hS) * forceEXP(n);
     u2Next = u2Next - k^2 / M * forceEXP(n);
+    
+    
+    
     
     %% Newton-Raphson %%
     
@@ -326,8 +312,6 @@ for n = 1:lengthSound
     quPrev = qu;
     qwPrev = qw;
     
-    out(n) = u1Next(outputPos);
-    out3(n) = u2Next;
     %% Draw functions
     if mod(n,drawSpeed) == 0 && n >= drawStart && drawThings == true
         
