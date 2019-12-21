@@ -1,13 +1,21 @@
+%{
+ The "weird behaviour" this script attempts to show is the fact that the
+string gets "stuck" behind the mass in the explicit case. In terms of the
+algorithm, this means that psi is negative for a prolonged period of time
+In this case, this happens from around sample 2800 with a sample rate of
+44100*10. 
+%}
+
 clear all;
 close all;
 
 %% Sample rate
-fs = 44100*10;
+fsScalar = 35; % 1: no weird behaviour, 10: weird behaviour, 20, no weird behaviour
+fs = 44100 * fsScalar; 
 k = 1/fs;
 
 %% Excitation (cos or bowed)
 exc = "bowed";
-contCosRate = 100;
 plotWeirdBehaviour = true;
 stopBowSample = 120000 * fs / 44100;
 
@@ -15,13 +23,7 @@ stopBowSample = 120000 * fs / 44100;
 drawThings = true;
 drawSpeed = 10 * fs / 44100;
 lengthSound = fs * 2;
-drawStart = 0;%250 * fs / 44100;
-damping = true;
-dampTest = false;
-onlyString = false;
-
-%% Bridge offset and location
-bridgeLoc = 0.8;
+drawStart = 0;
 
 %% String Variables
 f0 = 100;
@@ -43,12 +45,7 @@ s1 = 0;
 
 [BS, CS, NS, hS, Dxx, Dxxxx, s0, s1, bB, bC] = unscaledCreateStringNR (rho, A, T, E, I, L, s0, s1, k);
 
-u1 = zeros(NS, 1);
-u1Prev = zeros(NS, 1);
 u1Next = zeros(NS, 1);
-
-w1 = zeros(NS, 1);
-w1Prev = zeros(NS, 1);
 w1Next = zeros(NS, 1);
 
 courantNoS = c^2 * k^2 / hS^2 + 4 * kappaS^2 * k^2 / hS^4
@@ -67,13 +64,15 @@ end
 Vb = -0.2;
 quPrev = -Vb;  
 qwPrev = -Vb;  
-tol = 1e-4;
-colTol = 1e-10;
+tol = 1e-4; % bowing NR tolerance 
 
 %% Mass Variables
 f1 = 1000;    % fundamental frequency [Hz] (< 1 / (k * pi) (< 14,037 Hz))
 omega0 = 2 * pi * f1;   % angular frequency (< 2 / k (< 88,200 rad/s))
 M = 0.001;
+
+% Initialise the mass state with a velocity to make sure that 
+% etaNext - etaPrev ~= 0 (which is what we are dividing by in the NR algorithm)
 
 u2 = -0.99999e-6;
 u2Prev = -1e-6;
@@ -83,8 +82,11 @@ w2 = -0.99999e-6;
 w2Prev = -1e-6;
 w2Next = 0;
 
+% Mass location along the string
+massLoc = 0.8;
+
 %% Collision Variables
-cL = floor (NS * bridgeLoc) + 1; % bridge location
+cL = floor (NS * massLoc) + 1; % bridge location
 alpha1 = 1.5;
 K = 5 * 10^10;
 
@@ -92,14 +94,14 @@ K = 5 * 10^10;
 amp = -1e-4;
 
 if strcmp(exc, "cos")
-    width = 10;
+    width = floor(NS / 5);
     loc = 1/2;
     startIdx = floor(floor(loc * NS) - width / 2) + 1;
     endIdx = floor(floor(loc * NS) + width / 2) + 1;
     u1Next(startIdx : endIdx) = u1(startIdx : endIdx) + amp * (1 - cos(2 * pi * [0:width]' / width)) / 2;
     w1Next(startIdx : endIdx) = u1(startIdx : endIdx) + amp * (1 - cos(2 * pi * [0:width]' / width)) / 2;
-
 end
+
 u1 = u1Next;
 u1Prev = u1Next;
 w1 = w1Next;
@@ -125,28 +127,6 @@ colEnergyu1 = zeros(lengthSound, 1);
 colEnergy2 = zeros(lengthSound, 1);
 totEnergyu = zeros(lengthSound, 1);
 
-%% Initialise Rate-Of-Change Vectors (used to check damping)
-rOCkinEnergy1 = zeros(lengthSound, 1);
-rOCpotEnergy1 = zeros(lengthSound, 1);
-rOCcolEnergy1 = zeros(lengthSound, 1);
-rOCdamp0StringEnergy = zeros(lengthSound, 1);
-rOCdamp1StringEnergy = zeros(lengthSound, 1);
-rOCenergy1 = zeros(lengthSound, 1);
-
-rOCkinEnergy2 = zeros(lengthSound, 1);
-rOCpotEnergy2 = zeros(lengthSound, 1);
-rOCcolEnergy2 = zeros(lengthSound, 1);
-rOCenergy2 = zeros(lengthSound, 1);
-
-rOCkinEnergy3 = zeros(lengthSound, 1);
-rOCpotEnergy3 = zeros(lengthSound, 1);
-rOCcolEnergy3 = zeros(lengthSound, 1);
-rOCenergy3 = zeros(lengthSound, 1);
-
-rOCconnEnergy = zeros(lengthSound, 1);
-rOCconnDampEnergy = zeros(lengthSound, 1);
-rOCTotEnergy = zeros(lengthSound, 1);
-
 vec = 3:NS-2;
 eVec = 2:NS-1; % energy vector
 Ibr = zeros(NS,1);
@@ -158,9 +138,10 @@ Ibow(bP) = 1;
 Jbow = Ibow / hS;
 
 outputPos = floor(NS / 6);
-prog = 0;
 
-rampVal = 10000;
+prog = 0;
+colTol = 1e-10; % collision NR tolerance
+
 etauPrev = u2Prev - u1Prev(cL);
 etaNextPrev = etauPrev;
 
@@ -168,20 +149,22 @@ etaw = w2 - w1(cL);
 etawPrev = w2Prev - w1Prev(cL);
 etawNext = etaw;
 
+strVec = 3:NS-2;
+    
 for n = 1:lengthSound 
-
     Fb = FbInit;
+    
+    %% Explicit method %%
+    
+    % calculate eta^n and eta^{n-1}
     etau = u2 - u1(cL);
-    etauSave(n) = etau;
-    
+    etauPrev = u2Prev - u1Prev(cL);
+     
     %% Update FDSs without connection-force and collision terms 
-    strVec = 3:NS-2;
-    
     u1Next(strVec) = BS(strVec, :) * u1 + CS(strVec, :) * u1Prev;
     u2Next = 2 * u2 - u2Prev - k^2 * omega0^2 * u2;    
     
-    %% EXPLICIT
-    
+    %% Calculate g^n
     g = 0;
     if alpha1 == 1
         if etau > 0
@@ -192,7 +175,7 @@ for n = 1:lengthSound
     end
     gSave(n) = g;
     
-    %% Bowing u
+    %% Bowing
     if exc == "bowed"
         b = 2/k * Vb + Ibow' * bB * u1 + Ibow' * bC * u1Prev;
         eps = 1;
@@ -208,38 +191,31 @@ for n = 1:lengthSound
     else
         qu = 0;
     end
-%     iiSave(n) = ii;
+    
+    % Stop bowing after "stopBowSample" samples
     if n < stopBowSample
         u1Next = u1Next - k^2 / (rho * A) * (Jbow * Fb * BM * qu * exp(-a*qu^2));
     end
+    
+    %% Solve system
     Adiv = 1 + g^2*k^2 / (4*M) + g^2*k^2 / (4*rho*A*hS);
     v = (u2Next - u2Prev - u1Next(cL) + u1Prev(cL)) / (2*k) - k*psiPrev*g / (2*M) - psiPrev*g*k / (2*rho*A*hS);
-     
     solut = v / Adiv;
     
     psi = g*k*solut + psiPrev;
-    if g == 0
-        psiSave(n) = 0;
-    else
-        psiSave(n) = psi;
-    end
     
+    %% Calculate force and add to the string and mass-spring
     forceEXP(n)  = 0.5 * (psi + psiPrev) * g;
     u1Next(cL) = u1Next(cL) + k^2 / (rho * A * hS) * forceEXP(n);
     u2Next = u2Next - k^2 / M * forceEXP(n);
-
-    etauNext = u2Next - u1Next(cL);
     
-    if etauNext - etauPrev == 0
-        diffSave(n) = 0;
-    else
-        diffSave(n) = 1/k * (psi - psiPrev) / (1/(2*k) * (etauNext - etauPrev));
-    end
+    %% Newton-Raphson %%
     
-    %% NR
+    %% Update FDSs without connection-force and collision terms 
     w1Next(strVec) = BS(strVec, :) * w1 + CS(strVec, :) * w1Prev;
     w2Next = 2 * w2 - w2Prev - k^2 * omega0^2 * w2;
-    % Bowing w
+
+    %% Bowing
     if exc == "bowed"
         b = 2/k * Vb + Ibow' * bB * u1 + Ibow' * bC * u1Prev;
         eps = 1;
@@ -255,27 +231,31 @@ for n = 1:lengthSound
     else
         qw = 0;
     end
-%     iiSave(n) = ii;
+    
+    % Stop bowing after "stopBowSample" samples
     if n < stopBowSample
         w1Next = w1Next - k^2 / (rho * A) * (Jbow * Fb * BM * qw * exp(-a*qw^2));
     end
-   
-    %% NR collision
+       
+    % caluclate eta^n and eta^{n-1}
     etaw = w2 - w1(cL);
     etawPrev = w2Prev - w1Prev(cL);
     
+    %% NR collision
     b = -2 * etaw + etawPrev + k^2 * omega0^2 * w2 + T * k^2 / (rho * A * hS^2) * (w1(cL+1) - 2 * w1(cL) + w1(cL-1))...
         - E * I * k^2 / (rho * A * hS^4) * (w1(cL+2) - 4 * w1(cL+1) + 6 * w1(cL) - 4 * w1(cL-1) + w1(cL-2));
     eps = 1;
     ii = 0;
 
     while eps > colTol && ii < 100
+        % terms to use for the quotient rule
         f = subplus(etawNext)^(alpha1+1) - subplus(etawPrev)^(alpha1+1);
         df = (alpha1+1) * subplus(etawNext)^alpha1 * 0.5 * (1+sign(etawNext));
         gg = etawNext - etawPrev;
         dgg = 1;
         
         coeff = (k^2 / (rho * A * hS) + k^2 / M) * K / (alpha1+1);
+        
         G = etawNext + coeff * (subplus(etawNext)^(alpha1+1)-subplus(etawPrev)^(alpha1+1)) / (etawNext - etawPrev) + b;
         Gdiff = 1 + coeff * (df * gg - f * dgg) / gg^2;
         etaNextNew = etawNext - G / Gdiff;
@@ -285,23 +265,11 @@ for n = 1:lengthSound
         ii = ii + 1;
     end
 
-    
+    %% Calculate force and add to the string and mass-spring
     forceNR(n) = K / (alpha1 + 1) * (subplus(etawNext)^(alpha1+1) - subplus(etawPrev)^(alpha1+1)) / (etawNext - etawPrev);
-%     if collEffect ~= 0
-%         disp("wait");
-%     end
     w1Next(cL) = w1Next(cL) + k^2 / (rho * A * hS) * forceNR(n);
     w2Next = w2Next - k^2 / M * forceNR(n);
-%     disp(ii + " " + (etawNext - (w2Next - w1Next(cL))))
 
-    if drawThings && drawStart == 0
-%         disp("Difference between etaNext and u3Next(brP) - u2Next (should be 0)")
-%         etaNext - (u3Next(brP) - u2Next)
-    elseif mod(n,floor(lengthSound / 100)) == 0
-        prog = prog + 1;
-        disp("Progress: " + prog + "%")
-    end
-    
     %% Calculate energy of u
     % Energy String
     kinEnergyu1(n) = rho * A / 2 * hS * sum((1/k * (u1 - u1Prev)).^2);
@@ -342,7 +310,6 @@ for n = 1:lengthSound
     
     %% Update states
     psiPrev = psi; 
-    etauPrev = etau;
 
     u1Prev = u1;
     u1 = u1Next;
@@ -363,46 +330,45 @@ for n = 1:lengthSound
     out3(n) = u2Next;
     %% Draw functions
     if mod(n,drawSpeed) == 0 && n >= drawStart && drawThings == true
-        subplot(3,1,1)
+        
+        %% Draw the state of the explicitly calc
+        subplot(2,2,1)
         cla
         hold on;
         %...string
         plot(u1Next, 'Linewidth', 2);    
-        plot(w1Next, 'Linewidth', 2);    
         %...mass
         scatter(cL, u2Next, 400, '.');    
-        scatter(cL, w2Next, 400, '.');    
-        % Extra functions
-%             ylim([-1e-4, 1e-4]); % Set y-limit to the amplitude of the raised cosine
+        
         grid on; 
-        set(gca, 'Linewidth', 2, 'Fontsize', 16)
-        title("State of the system")
-%             legend(["String", "Bridge", "Body"])
-        subplot(3,1,2)
-%         title("Normalised energy u")
-%         plot(totEnergyu(1:n) / totEnergyu(1) - 1);
-        plot(forceEXP(1:n))
-        subplot(3,1,3)
-%         title("Normalised energy w")
-%         plot(totEnergyw(1:n) / totEnergyw(1) - 1);
-        plot(forceNR(1:n));
-    end
-    drawnow;
-end
-posOut1 = out - min(out);
-totOut1 = (posOut1/max(abs(posOut1)) - 0.5) * 2;
-posOut2 = out2 - min(out2);
-totOut2 = (posOut2/max(abs(posOut2)) - 0.5) * 2;
-posOut3 = out3 - min(out3);
-totOut3 = (posOut3/max(abs(posOut3)) - 0.5) * 2;
-totOut4 = (gSave/max(abs(gSave)) - 0.5) * 2;
-totOut = totOut1/5 + totOut2 + totOut3;
+        set(gca, 'Linewidth', 2)
+        set(gca, 'Fontsize', 16)
+        title("System state (explicit)")
+        
+        subplot(2,2,2)
+        cla
+        hold on;
+        %...string
+        plot(w1Next, 'Linewidth', 2);    
+        %...mass
+        scatter(cL, w2Next, 400, '.');    
+        
+        grid on; 
+        set(gca, 'Linewidth', 2)
+        set(gca, 'Fontsize', 16)
+        title("System state (NR)") 
+        
+        subplot(2,2,3)
+        plot(forceEXP(1:n));
+        title("$(\mu_{t+}\psi^{n-1/2})g^n$", 'interpreter', 'latex')
+        set(gca, 'Fontsize', 16)
 
-if ~drawThings
-    if onlyString
-        plot(out);
-    else
-        plot(totOut);
+        subplot(2,2,4)
+        plot(forceNR(1:n));
+        set(gca, 'Fontsize', 16)
+        title("$\delta_{t\cdot}\phi^{n} / \delta_{t\cdot}\eta^n$", 'interpreter', 'latex') 
+
+        drawnow;
     end
+    
 end
-plot(g2Save)
