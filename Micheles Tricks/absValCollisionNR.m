@@ -1,16 +1,8 @@
-%{
- The "weird behaviour" this script attempts to show is the fact that the
-string gets "stuck" behind the mass in the explicit case. In terms of the
-algorithm, this means that psi is negative for a prolonged period of time
-In this case, this happens from around sample 2800 with a sample rate of
-44100*10. 
-%}
-
 clear all;
 close all;
 
 %% Sample rate
-fsScalar = 1; % 1: no weird behaviour, 10: weird behaviour, 20, no weird behaviour
+fsScalar = 1;
 fs = 44100 * fsScalar; 
 k = 1/fs;
 
