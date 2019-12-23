@@ -15,13 +15,13 @@ fs = 44100 * fsScalar;
 k = 1/fs;
 
 %% Excitation (cos or bowed)
-exc = "bowed";
+exc = "cos";
 plotWeirdBehaviour = true;
 stopBowSample = 120000 * fs / 44100;
 
 %% Drawing Functions
 drawThings = true;
-drawSpeed = 10 * fs / 44100;
+drawSpeed = 1 * fs / 44100;
 lengthSound = fs * 2;
 drawStart = 0;
 
@@ -31,7 +31,6 @@ rho = 7850;
 r = 0.0005;
 A = r^2 * pi;
 c = f0 * 2;         % Wave-Speed
-% T = 10;  % Tension
 T = c^2 * rho * A;
 k = 1 / fs;         % Time step
 E = 2e11;           % Young's modulus
@@ -47,6 +46,10 @@ s1 = 0;
 
 u1Next = zeros(NS, 1);
 w1Next = zeros(NS, 1);
+u1 = zeros(NS, 1);
+w1 = zeros(NS, 1);
+u1Prev = zeros(NS, 1);
+w1Prev = zeros(NS, 1);
 
 courantNoS = c^2 * k^2 / hS^2 + 4 * kappaS^2 * k^2 / hS^4
 
@@ -123,7 +126,7 @@ Jbow = Ibow / hS;
 outputPos = floor(NS / 6);
 
 prog = 0;
-colTol = 1e-10; % collision NR tolerance
+colTol = 1e-15; % collision NR tolerance
 
 etauPrev = u2Prev - u1Prev(cL);
 etaNextPrev = etauPrev;
@@ -132,8 +135,7 @@ etaw = w2 - w1(cL);
 etawPrev = w2Prev - w1Prev(cL);
 etawNext = etaw;
 
-strVec = 3:NS-2;
-    
+strVec = 3:NS-2; 
 for n = 1:lengthSound 
     Fb = FbInit;
     
@@ -157,7 +159,7 @@ for n = 1:lengthSound
         g = sqrt(K * (alpha1+1) / 2) * subplus(etau)^((alpha1 - 1)/2);
     end
     gSave(n) = g;
-    
+
     %% Bowing
     if exc == "bowed"
         b = 2/k * Vb + Ibow' * bB * u1 + Ibow' * bC * u1Prev;
@@ -279,8 +281,8 @@ for n = 1:lengthSound
     % Energy String
     kinEnergyw1(n) = rho * A / 2 * hS * sum((1/k * (w1 - w1Prev)).^2);
     potEnergyw1(n) = T / 2 * 1/hS * sum((w1(3:NS) - w1(2:NS-1)) .* (w1Prev(3:NS) - w1Prev(2:NS-1)))...
-        + E * I / 2 * 1/hS^3 * sum((u1(eVec+1) - 2 * u1(eVec) + u1(eVec-1)) ...
-        .* (u1Prev(eVec+1) - 2 * u1Prev(eVec) + u1Prev(eVec-1)));
+        + E * I / 2 * 1/hS^3 * sum((w1(eVec+1) - 2 * w1(eVec) + w1(eVec-1)) ...
+        .* (w1Prev(eVec+1) - 2 * w1Prev(eVec) + w1Prev(eVec-1)));
     energyw1(n) = kinEnergyw1(n) + potEnergyw1(n);
     
     % Energy Mass
@@ -316,7 +318,7 @@ for n = 1:lengthSound
     if mod(n,drawSpeed) == 0 && n >= drawStart && drawThings == true
         
         %% Draw the state of the explicitly calc
-        subplot(2,2,1)
+        subplot(3,3,1)
         cla
         hold on;
         %...string
@@ -329,7 +331,7 @@ for n = 1:lengthSound
         set(gca, 'Fontsize', 16)
         title("System state (explicit)")
         
-        subplot(2,2,2)
+        subplot(3,3,2)
         cla
         hold on;
         %...string
@@ -342,15 +344,59 @@ for n = 1:lengthSound
         set(gca, 'Fontsize', 16)
         title("System state (NR)") 
         
-        subplot(2,2,3)
+        subplot(3,3,3)
+        cla
+        hold on;
+        %...string
+        plot(u1Next, 'Linewidth', 2);        
+        plot(w1Next, 'Linewidth', 2);    
+        
+        %...mass
+        scatter(cL, u2Next, 400, '.');    
+        scatter(cL, w2Next, 400, '.');
+        
+        grid on; 
+        set(gca, 'Linewidth', 2)
+        set(gca, 'Fontsize', 16)
+        title("Both states")
+        
+        
+        subplot(3,3,4)
         plot(forceEXP(1:n));
         title("$(\mu_{t+}\psi^{n-1/2})g^n$", 'interpreter', 'latex')
         set(gca, 'Fontsize', 16)
 
-        subplot(2,2,4)
+        subplot(3,3,5)
         plot(forceNR(1:n));
         set(gca, 'Fontsize', 16)
         title("$\delta_{t\cdot}\phi^{n} / \delta_{t\cdot}\eta^n$", 'interpreter', 'latex') 
+
+        subplot(3,3,6)
+        cla
+        plot(forceEXP(2:n-1));
+        hold on
+        plot(forceNR (2:n-1));
+        set(gca, 'Fontsize', 16)
+        title("Both") 
+
+        
+        subplot(3,3,7)
+        plot(totEnergyu(1:n) / totEnergyu(1) - 1);
+        title("Energy u")
+        set(gca, 'Fontsize', 16)
+
+        subplot(3,3,8)
+        plot(totEnergyw(1:n) / totEnergyw(1) - 1);
+        set(gca, 'Fontsize', 16)
+        title("Energy w") 
+
+        subplot(3,3,9)
+        cla
+        plot(totEnergyu(1:n));
+        hold on
+        plot(totEnergyw(1:n));
+        set(gca, 'Fontsize', 16)
+        title("Both") 
 
         drawnow;
     end
